@@ -14,11 +14,11 @@ public class Tokenizer {
     private static List<String> lines;
     private static HashMap<String, Pair> keyWords, separators, operators;
     private static String alphabet;
-    //private static String separators;
+    private static State currentState = State.unreserved;
+    private static GlobalState globalState = GlobalState.unreserved;
 
     static {
         alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        //separators = ".,:;()[]";
     }
 
     private static int posX = 1;
@@ -76,36 +76,6 @@ public class Tokenizer {
             put("goto",     new Pair(TokenType.KEYWORD, TokenValue.KEYWORD_XOR));
             put("label",    new Pair(TokenType.KEYWORD, TokenValue.KEYWORD_LABEL));
             put("program",  new Pair(TokenType.KEYWORD, TokenValue.KEYWORD_PROGRAM));
-//
-//                    KEYWORD_DOUBLE_DOT,
-//                    KEYWORD_ASSIGN,
-//                    KEYWORD_MINUS,
-//                    KEYWORD_PLUS,
-//                    KEYWORD_MULT,
-//                    KEYWORD_DIVISION,
-//                    KEYWORD_BRACKETS_SQUARE_LEFT,
-//                    KEYWORD_BRACKETS_SQUARE_RIGHT,
-//                    KEYWORD_SEMICOLON,
-//                    KEYWORD_COLON,
-//                    KEYWORD_COMMA,
-//                    KEYWORD_DOT,
-//                    KEYWORD_CAP,
-//                    KEYWORD_DOG,
-//                    KEYWORD_BRACKETS_LEFT,
-//                    KEYWORD_BRACKETS_RIGHT,
-//                    KEYWORD_LESS,
-//                    KEYWORD_GREATER,
-//                    KEYWORD_EQUAL,
-//                    KEYWORD_LESS_OR_EQUAL,
-//                    KEYWORD_GREATER_OR_EQUAL,
-//                    KEYWORD_NOT_EQUAL,
-//                    KEYWORD_UNRESERVED,
-//                    KEYWORD_INTEGER,
-//                    KEYWORD_REAL,
-//                    KEYWORD_WRITE,
-//                    KEYWORD_WRITELN,
-//
-//                    VARIABLE,
         }};
 
         separators = new HashMap<String, Pair>() {{
@@ -140,14 +110,21 @@ public class Tokenizer {
 
     }
 
+    private enum State {
+        unreserved,
+        beginningOfLine,
+        insideTheLine,
+        endOfLine,
+    }
+
+    private enum GlobalState {
+        unreserved,
+        string,
+    }
+
     public Tokenizer(String file) {
         try {
             lines = Files.readAllLines(Paths.get(file), StandardCharsets.UTF_8);
-//            inputLine = new StringBuilder();
-//            for (String line : lines) {
-//                //System.out.println(line + "!!!");
-//                inputLine.append(line);
-//            }
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -164,72 +141,60 @@ public class Tokenizer {
     public void getNextToken() {
         for (String s : lines) {
 
-            StringBuilder builder = new StringBuilder();
             boolean endOfLine = false;
+
+            StringBuilder builder = new StringBuilder();
+
             for (int i = 0; i < s.length(); i++) {
+
 
                 if (s.length() - i == 1)
                     endOfLine = true;
 
+                if (s.charAt(i) == '\n'  && currentState == State.beginningOfLine) {
+                    System.out.println("ERROR UNCLOSED LINE in pos " + posX + " " + i);
+                    System.exit(0);
+                }
+
                 if (isApostrophe(s.charAt(i))) {
-                    //int countApostrophe = 1;
-                    StringBuilder stringBuilder = new StringBuilder();
-                    int k = i;
-                    while (s.length() - k >= 1) {
 
-                        if (s.charAt(k) != '\'') {
-                            stringBuilder.append(s.charAt(k) + "");
-                            k++;
+                    switch (currentState) {
+                        case unreserved :
+                            //if ()
+                            globalState = GlobalState.string;
+                            currentState = State.beginningOfLine;
                             continue;
-                        }
-
-                        if (s.length() - k > 1 && s.charAt(k + 1) == '\'') {
-                            //System.out.println(s.charAt(k) );
-                            stringBuilder.append(s.charAt(k) + "");
-                            k++;
-                        }
-
-                        if (s.length() - k > 1 && s.charAt(k + 1) != '\'') {
-                            Token token = new Token(new Pair(TokenType.STRING, TokenValue.KEYWORD_UNRESERVED),
-                                    posX, i + 2, stringBuilder.toString());
-                            token.print();
-                            if (k > i)
-                                i = k;
-                            break;
-                        }
-                        k++;
-//                        int cnt = 1;
-//                        while (s.length() - k > 1) {
-//                            if (s.charAt(++k) == '\'')
-//                                cnt++;
-//                        }
-//                        if (cnt > 2) {
-//
-//                        }
-//                        if (s.length() - k > 1 && s.charAt(k) == '\'' && s.charAt(k + 1) == '\'') {
-//                            stringBuilder.append(s.charAt(k) + "");
-//                            k++;
-//                            continue;
-//                        }
-//
-//                        if (s.length() - k > 1)
-//                            stringBuilder.append(s.charAt(k) + "");
-//                        if (s.length() - k >= 1 && s.charAt(k + 1) == '\'' && s.charAt(k + 1) == '\'') {
-//                            stringBuilder.append(s.charAt(k + 1));
-//                            k += 2;
-//                        }
+                        case beginningOfLine:
+                            currentState = State.endOfLine;
+                            continue;
+                        case endOfLine:
+                            currentState = State.insideTheLine;
+                            builder.append(s.charAt(i));
+                            continue;
+                        case insideTheLine:
+                            currentState = State.endOfLine;
+                            continue;
                     }
+
+                }
+
+                if (currentState == State.endOfLine) {
+                    globalState = GlobalState.unreserved;
                     Token token = new Token(new Pair(TokenType.STRING, TokenValue.KEYWORD_UNRESERVED),
-                            posX, i + 2, stringBuilder.toString());
+                            posX, posY, builder.toString());
                     token.print();
-                    //System.out.println(stringBuilder.toString());
-                    if (k > i)
-                        i = k;
+                    continue;
+                }
+
+                if (globalState == GlobalState.string) {
+                    builder.append(s.charAt(i));
+                    continue;
                 }
 
                 // Parse words
 
                 if (itIsLetter(s.charAt(i))) {
+
                     builder.append(s.charAt(i));
 
                     if (endOfLine || !itIsLetter(s.charAt(i + 1)) || isApostrophe(s.charAt(i))) {
@@ -328,7 +293,13 @@ public class Tokenizer {
                         i = k - 1;
 //                    token.print();
                 }
+            }
 
+            if (currentState == State.endOfLine) {
+                globalState = GlobalState.unreserved;
+                Token token = new Token(new Pair(TokenType.STRING, TokenValue.KEYWORD_UNRESERVED),
+                        posX, posY, builder.toString());
+                token.print();
             }
             //System.out.println(s.length());
             posY = s.length() + 1;
@@ -368,58 +339,3 @@ public class Tokenizer {
         }
     }
 }
-
-
-//                else if (s.charAt(i) == '+') {
-//                    Token token = new Token(new Pair(TokenType.OPERATOR,
-//                            TokenValue.KEYWORD_PLUS), posX, i + 1, s.charAt(i) + "");
-//                    token.print();
-//                }
-//
-//                else if (s.charAt(i) == '-') {
-//                    Token token = new Token(new Pair(TokenType.OPERATOR,
-//                            TokenValue.KEYWORD_MINUS), posX, i + 1, s.charAt(i) + "");
-//                    token.print();
-//                }
-//
-//                else if (s.charAt(i) == '*') {
-//                    Token token = new Token(new Pair(TokenType.OPERATOR,
-//                            TokenValue.KEYWORD_MULT), posX, i + 1, s.charAt(i) + "");
-//                    token.print();
-//                }
-//
-//                // We need add check comment
-//                else if (s.charAt(i) == '/') {
-//                    if (s.charAt(i + 1) == '/') {
-//                        continue;
-//                    }
-//                    Token token = new Token(new Pair(TokenType.OPERATOR,
-//                            TokenValue.KEYWORD_DIVISION), posX, i + 1, s.charAt(i) + "");
-//                    token.print();
-//                }
-//
-//                else if (s.charAt(i) == '[') {
-//                    Token token = new Token(new Pair(TokenType.SEPARATOR,
-//                            TokenValue.KEYWORD_BRACKETS_SQUARE_LEFT), posX, i + 1, s.charAt(i) + "");
-//                    token.print();
-//                }
-//
-//                else if (s.charAt(i) == ']') {
-//                    Token token = new Token(new Pair(TokenType.SEPARATOR,
-//                            TokenValue.KEYWORD_BRACKETS_SQUARE_RIGHT), posX, i + 1, s.charAt(i) + "");
-//                    token.print();
-//                }
-//
-//                else if (s.charAt(i) == '(') {
-//                    Token token = new Token(new Pair(TokenType.SEPARATOR,
-//                            TokenValue.KEYWORD_BRACKETS_LEFT), posX, i + 1, s.charAt(i) + "");
-//                    token.print();
-//                }
-//
-//                else if (s.charAt(i) == ')') {
-//                    Token token = new Token(new Pair(TokenType.SEPARATOR,
-//                            TokenValue.KEYWORD_BRACKETS_RIGHT), posX, i + 1, s.charAt(i) + "");
-//                    token.print();
-//                }
-//
-//                else if (s.)
