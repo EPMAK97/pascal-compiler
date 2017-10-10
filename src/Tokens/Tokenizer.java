@@ -138,7 +138,7 @@ public class Tokenizer {
 
     private static boolean isApostrophe(char c) { return c == '\''; }
 
-    public void getNextToken() {
+    public void generateToken() {
         for (String s : lines) {
 
             boolean endOfLine = false;
@@ -161,6 +161,7 @@ public class Tokenizer {
                     switch (currentState) {
                         case unreserved :
                             //if ()
+                            posY = i + 1;
                             globalState = GlobalState.string;
                             currentState = State.beginningOfLine;
                             continue;
@@ -179,14 +180,17 @@ public class Tokenizer {
                 }
 
                 if (currentState == State.endOfLine) {
+                    currentState = State.unreserved;
                     globalState = GlobalState.unreserved;
                     Token token = new Token(new Pair(TokenType.STRING, TokenValue.KEYWORD_UNRESERVED),
                             posX, posY, builder.toString());
                     token.print();
-                    continue;
+                    builder = new StringBuilder();
+                    //builder = new StringBuilder();
                 }
 
                 if (globalState == GlobalState.string) {
+                    posY = i + 1;
                     builder.append(s.charAt(i));
                     continue;
                 }
@@ -296,10 +300,14 @@ public class Tokenizer {
             }
 
             if (currentState == State.endOfLine) {
+                currentState = State.unreserved;
                 globalState = GlobalState.unreserved;
                 Token token = new Token(new Pair(TokenType.STRING, TokenValue.KEYWORD_UNRESERVED),
                         posX, posY, builder.toString());
                 token.print();
+            } else if (currentState == State.beginningOfLine) {
+                System.out.println("ERROR UNCLOSED LINE in pos " + posX + " " + posY);
+                System.exit(0);
             }
             //System.out.println(s.length());
             posY = s.length() + 1;
@@ -310,7 +318,7 @@ public class Tokenizer {
     }
 
     public void launch() {
-        getNextToken();
+        generateToken();
     }
 
     public class Pair {
