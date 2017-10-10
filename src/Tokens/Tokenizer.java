@@ -18,7 +18,7 @@ public class Tokenizer {
     private static GlobalState globalState = GlobalState.unreserved;
 
     static {
-        alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_";
     }
 
     private static int posX = 1;
@@ -115,11 +115,23 @@ public class Tokenizer {
         beginningOfLine,
         insideTheLine,
         endOfLine,
+
+        withinTheNumber,
+        endOfNumber,
+        isDot,
+        isExp,
+
+        withinTheWord,
+        endOfWord,
     }
 
     private enum GlobalState {
         unreserved,
         string,
+        intNumber,
+        realNumber,
+        word,
+        //dot,
     }
 
     public Tokenizer(String file) {
@@ -132,11 +144,17 @@ public class Tokenizer {
 
     private static boolean itIsLetter(char c) { return alphabet.contains(Character.toString(c)); }
 
-    private static boolean isNum(char c) {
-        return ('0' <= c) && ('9' >= c);
-    }
+    private static boolean isNum(char c) { return ('0' <= c) && ('9' >= c); }
 
     private static boolean isApostrophe(char c) { return c == '\''; }
+
+    private static boolean isDot(char c) { return c == '.'; }
+
+    private static boolean isExp(char c) { return c == 'e'; }
+
+    private static boolean isPlus(char c) { return c == '+'; }
+
+    private static boolean isMinus(char c) { return c == '-'; }
 
     public void generateToken() {
         for (String s : lines) {
@@ -145,8 +163,18 @@ public class Tokenizer {
 
             StringBuilder builder = new StringBuilder();
 
+            currentState = State.unreserved;
+            globalState = GlobalState.unreserved;
             for (int i = 0; i < s.length(); i++) {
 
+//                if (currentState == State.endOfNumber
+//                        && !isNum(s.charAt(i))
+//                        && !isDot(s.charAt(i))
+//                        && !isExp(s.charAt(i))) {
+//                    Token token = new Token(new Pair(TokenType.DOUBLE, TokenValue.KEYWORD_DOUBLE),
+//                            posX, posY, builder.toString());
+//                    token.print();
+//                }
 
                 if (s.length() - i == 1)
                     endOfLine = true;
@@ -198,40 +226,125 @@ public class Tokenizer {
                 // Parse words
 
                 if (itIsLetter(s.charAt(i))) {
-
-                    builder.append(s.charAt(i));
-
-                    if (endOfLine || !itIsLetter(s.charAt(i + 1)) || isApostrophe(s.charAt(i))) {
-
-                        String key = builder.toString().toLowerCase();
-                        if (keyWords.containsKey(key)) {
-                            Token token = new Token(keyWords.get(key), posX, posY, builder.toString());
-                            //System.out.println("я поймал ключевое слово");
-                            token.print();
-                        }
-                        else {
-                            Token token = new Token(new Pair(TokenType.IDENTIFIER, TokenValue.VARIABLE), posX, posY, key);
-                            System.out.println("я поймал переменную");
-                            token.print();
-                        }
-                        //System.out.println(builder.toString());
-                        builder = new StringBuilder();
+                    switch (currentState) {
+                        case unreserved:
+                            posY = i + 1;
+                            globalState = GlobalState.word;
+                            currentState = State.withinTheWord;
+                            builder.append(s.charAt(i));
+                            break;
+                        case withinTheWord:
+                            currentState = State.endOfWord;
+                            builder.append(s.charAt(i));
+                            break;
+                        case endOfWord:
+                            builder.append(s.charAt(i));
+                            currentState = State.withinTheWord;
+                            break;
                     }
+                }
+
+//                if (itIsLetter(s.charAt(i))
+//                        && globalState != GlobalState.realNumber
+//                        && currentState != State.isDot
+//                        && globalState != GlobalState.intNumber) {
+//
+//                    builder.append(s.charAt(i));
+//
+//                    if (endOfLine || !itIsLetter(s.charAt(i + 1)) || isApostrophe(s.charAt(i))) {
+//
+//                        String key = builder.toString().toLowerCase();
+//                        if (keyWords.containsKey(key)) {
+//                            Token token = new Token(keyWords.get(key), posX, i + 1, builder.toString());
+//                            token.print();
+//                        }
+//                        else {
+//                            Token token = new Token(new Pair(TokenType.IDENTIFIER, TokenValue.VARIABLE),
+//                                    posX, i + 1, key);
+//                            token.print();
+//                        }
+//                        builder = new StringBuilder();
+//                    }
+//                }
+
+                // Parse numbers
+
+                else if (isNum(s.charAt(i))) {
+                    switch(currentState) {
+                        case unreserved:
+                            posY = i + 1;
+                            currentState = State.withinTheNumber;
+                            globalState = GlobalState.intNumber;
+                            builder.append(s.charAt(i));
+                            continue;
+                        case withinTheNumber:
+                            currentState = State.endOfNumber;
+                            builder.append(s.charAt(i));
+                            continue;
+                        case isDot:
+                            globalState = GlobalState.realNumber;
+                            currentState = State.endOfNumber;
+                            builder.append(".");
+                            builder.append(s.charAt(i));
+                            break;
+                        case isExp:
+                            builder.append(s.charAt(i));
+                            currentState = State.endOfNumber;
+                            break;
+                        case endOfNumber:
+                            builder.append(s.charAt(i));
+                            currentState = State.withinTheNumber;
+                            break;
+                    }
+                }
+
+                else if (isDot(s.charAt(i))) {
+                    if (currentState == State.isDot) {
+                        if (globalState == GlobalState.intNumber) {
+                            Token token = new Token(new Pair(TokenType.INTEGER,
+                                    TokenValue.KEYWORD_UNRESERVED), posX, i - 1, builder.toString());
+                            token.print();
+                            builder = new StringBuilder();
+                        }
+                        Token token1 = new Token(new Pair(TokenType.SEPARATOR,
+                                TokenValue.KEYWORD_DOUBLE_DOT), posX, i + 1, "..");
+                        token1.print();
+                        globalState = GlobalState.unreserved;
+                        currentState = State.unreserved;
+                        continue;
+                    }
+                    currentState = State.isDot;
+                }
+
+                else if (isExp(s.toLowerCase().charAt(i)) && (
+                        globalState == GlobalState.intNumber ||
+                        globalState == GlobalState.realNumber)) {
+                    if (currentState == State.isDot)
+                        builder.append(".");
+                    currentState = State.isExp;
+                    globalState = GlobalState.realNumber;
+                    builder.append("e");
+                }
+
+                else if ((isPlus(s.charAt(i)) || isMinus(s.charAt(i))
+                        && globalState == GlobalState.realNumber)) {
+                    builder.append(s.charAt(i));
+                    continue;
                 }
 
                 // Parse separators
 
-                else if (separators.containsKey(s.charAt(i) + "")) {
-                    if (!endOfLine && s.charAt(i) == '.' && s.charAt(i + 1) == '.') {
-                        Token token = new Token(new Pair(TokenType.SEPARATOR,
-                                TokenValue.KEYWORD_DOUBLE_DOT), posX, i + 1, "..");
-                        token.print();
-                        i++;
-                        continue;
-                    }
-                    Token token = new Token(separators.get(s.charAt(i) + ""), posX, i + 1, s.charAt(i) + "");
-                    token.print();
-                }
+//                else if (separators.containsKey(s.charAt(i) + "")) {
+//                    if (!endOfLine && s.charAt(i) == '.' && s.charAt(i + 1) == '.') {
+//                        Token token = new Token(new Pair(TokenType.SEPARATOR,
+//                                TokenValue.KEYWORD_DOUBLE_DOT), posX, i + 1, "..");
+//                        token.print();
+//                        i++;
+//                        continue;
+//                    }
+//                    Token token = new Token(separators.get(s.charAt(i) + ""), posX, i + 1, s.charAt(i) + "");
+//                    token.print();
+//                }
 
                 // Parse operation
 
@@ -282,21 +395,6 @@ public class Tokenizer {
                     token.print();
                 }
 
-                // Parse numbers
-
-                else if (isNum(s.charAt(i))) {
-                    StringBuilder stringBuilder = new StringBuilder();
-                    int k = i;
-                    while (s.length() - k >= 1 && isNum(s.charAt(k))) {
-                        stringBuilder.append(s.charAt(k++) + "");
-                    }
-                    Token token = new Token(new Pair(TokenType.INTEGER,
-                            TokenValue.KEYWORD_UNRESERVED), posX, i + 1, stringBuilder.toString());
-                    token.print();
-                    if (k > i)
-                        i = k - 1;
-//                    token.print();
-                }
             }
 
             if (currentState == State.endOfLine) {
@@ -305,9 +403,44 @@ public class Tokenizer {
                 Token token = new Token(new Pair(TokenType.STRING, TokenValue.KEYWORD_UNRESERVED),
                         posX, posY, builder.toString());
                 token.print();
+
             } else if (currentState == State.beginningOfLine) {
                 System.out.println("ERROR UNCLOSED LINE in pos " + posX + " " + posY);
                 System.exit(0);
+
+            } else if (currentState == State.isDot) {
+                Token token = new Token(new Pair(TokenType.DOUBLE, TokenValue.KEYWORD_DOUBLE),
+                        posX, posY, builder.toString() + ".");
+                token.print();
+
+            } else if (currentState == State.withinTheNumber || currentState == State.endOfNumber) {
+
+                if (globalState == GlobalState.realNumber) {
+                    Token token = new Token(new Pair(TokenType.DOUBLE, TokenValue.KEYWORD_DOUBLE),
+                            posX, posY, builder.toString());
+                    token.print();
+                }
+                else {
+                    Token token = new Token(new Pair(TokenType.INTEGER, TokenValue.KEYWORD_INTEGER),
+                            posX, posY, builder.toString());
+                    token.print();
+                }
+
+            }
+
+            if (globalState == GlobalState.word) {
+
+                String key = builder.toString().toLowerCase();
+                if (keyWords.containsKey(key)) {
+                        Token token = new Token(keyWords.get(key), posX, posY, builder.toString());
+                        token.print();
+                }
+                else {
+                    Token token = new Token(new Pair(TokenType.IDENTIFIER, TokenValue.VARIABLE),
+                            posX, posY, builder.toString());
+                    token.print();
+                }
+
             }
             //System.out.println(s.length());
             posY = s.length() + 1;
