@@ -80,6 +80,8 @@ public enum TokenValue {
     KEYWORD_STAR,
     KEYWORD_LATTICE,
     KEYWORD_DOLLAR,
+    KEYWORD_READ,
+    KEYWORD_READLN,
 
     VARIABLE,
 }
