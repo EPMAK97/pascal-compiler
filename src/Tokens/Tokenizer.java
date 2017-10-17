@@ -16,27 +16,20 @@ public class Tokenizer {
     //private static ArrayList<Token> tokenArrayList;
 
     static {
-        numberParser    = new NumberParser();
-        operatorParser  = new OperatorParser();
-        separatorParser = new SeparatorParser();
-        wordParser      = new WordParser();
-
         alphabet    = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_\'";
         separators  = "[](){},.;";
         operators   = "+-*/@#$^=><:";
         digits      = "0123456789";
-
         //tokenArrayList = new ArrayList<>();
     }
 
     public Tokenizer(String filePath) {
         reader = new Reader(filePath);
-        numberParser.setReaderAndTokinizer(reader, this);
-        operatorParser.setReaderAndTokinizer(reader, this);
-        separatorParser.setReaderAndTokinizer(reader, this);
-        wordParser.setReaderAndTokinizer(reader, this);
+        numberParser    = new NumberParser(reader, this);
+        operatorParser  = new OperatorParser(reader, this);
+        separatorParser = new SeparatorParser(reader, this);
+        wordParser      = new WordParser(reader, this);
     }
-
 
     public void setCurrentToken(Token currentToken) {
         //tokenArrayList.add(currentToken);

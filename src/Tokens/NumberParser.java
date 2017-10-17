@@ -4,10 +4,7 @@ import Tokens.Types.Pair;
 import Tokens.Types.TokenType;
 import Tokens.Types.TokenValue;
 
-public class NumberParser implements Parsable {
-
-    private Reader reader;
-    private Tokenizer tokenizer;
+public class NumberParser extends Parser {
 
     private static String numericСharacters;
     private static StringBuilder builder;
@@ -19,15 +16,8 @@ public class NumberParser implements Parsable {
         numericСharacters = "0123456789.+-eE";
     }
 
-    @Override
-    public void setReaderAndTokinizer(Reader reader, Tokenizer tokenizer) {
-        this.reader = reader;
-        this.tokenizer = tokenizer;
-    }
-
-    @Override
-    public void passToken(Pair pair, int x, int y, String value) {
-        tokenizer.setCurrentToken(new Token(pair, x, y, value));
+    protected NumberParser(Reader reader, Tokenizer tokenizer) {
+        super(reader, tokenizer);
     }
 
     private static boolean isNum(char c) { return ('0' <= c) && ('9' >= c); }

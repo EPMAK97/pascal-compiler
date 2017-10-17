@@ -6,10 +6,7 @@ import Tokens.Types.TokenValue;
 
 import java.util.HashMap;
 
-public class WordParser implements Parsable {
-
-    private Reader reader;
-    private Tokenizer tokenizer;
+public class WordParser extends Parser {
 
     private static String alphabet;
     private static StringBuilder builder;
@@ -79,15 +76,8 @@ public class WordParser implements Parsable {
         }};
     }
 
-    @Override
-    public void setReaderAndTokinizer(Reader reader, Tokenizer tokenizer) {
-        this.reader = reader;
-        this.tokenizer = tokenizer;
-    }
-
-    @Override
-    public void passToken(Pair pair, int x, int y, String value) {
-        tokenizer.setCurrentToken(new Token(pair, x, y, value));
+    protected WordParser(Reader reader, Tokenizer tokenizer) {
+        super(reader, tokenizer);
     }
 
     private void prepareToken(int x, int y) {

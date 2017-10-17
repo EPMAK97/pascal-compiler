@@ -6,6 +6,4 @@ public interface Parsable {
     public void parse(char c);
 
     public void passToken(Pair pair, int x, int y, String value);
-
-    public void setReaderAndTokinizer(Reader reader, Tokenizer tokenizer);
 }

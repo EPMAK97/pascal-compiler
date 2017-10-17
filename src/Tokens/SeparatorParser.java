@@ -6,10 +6,7 @@ import Tokens.Types.TokenValue;
 
 import java.util.HashMap;
 
-public class SeparatorParser implements Parsable {
-
-    private Reader reader;
-    private Tokenizer tokenizer;
+public class SeparatorParser extends Parser {
 
     private static HashMap<String, Pair> separators;
 
@@ -27,15 +24,8 @@ public class SeparatorParser implements Parsable {
         }};
     }
 
-    @Override
-    public void setReaderAndTokinizer(Reader reader, Tokenizer tokenizer) {
-        this.reader = reader;
-        this.tokenizer = tokenizer;
-    }
-
-    @Override
-    public void passToken(Pair pair, int x, int y, String value) {
-        tokenizer.setCurrentToken(new Token(pair, x, y, value));
+    protected SeparatorParser(Reader reader, Tokenizer tokenizer) {
+        super(reader, tokenizer);
     }
 
     @Override

@@ -6,10 +6,7 @@ import Tokens.Types.TokenValue;
 
 import java.util.HashMap;
 
-public class OperatorParser implements Parsable {
-
-    private Reader reader;
-    private Tokenizer tokenizer;
+public class OperatorParser extends Parser {
 
     private static HashMap<String, Pair> operators;
 
@@ -30,15 +27,8 @@ public class OperatorParser implements Parsable {
         }};
     }
 
-    @Override
-    public void setReaderAndTokinizer(Reader reader, Tokenizer tokenizer) {
-        this.reader = reader;
-        this.tokenizer = tokenizer;
-    }
-
-    @Override
-    public void passToken(Pair pair, int x, int y, String value) {
-        tokenizer.setCurrentToken(new Token(pair, x, y, value));
+    protected OperatorParser(Reader reader, Tokenizer tokenizer) {
+        super(reader, tokenizer);
     }
 
     @Override
