@@ -1,9 +1,0 @@
-1) Declaration
-Begin
-    Writeln(‘Hello world’);
-end.
-
-
-var
-age, weekdays : integer;
-

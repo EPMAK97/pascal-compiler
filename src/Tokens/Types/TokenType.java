@@ -1,4 +1,4 @@
-package Tokens.Enums;
+package Tokens.Types;
 
 public enum TokenType {
     IDENTIFIER,
