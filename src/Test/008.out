@@ -1,0 +1,21 @@
+1  |  1 | OPERATOR    | KEYWORD_PLUS                  | +
+1  |  3 | OPERATOR    | KEYWORD_MINUS                 | -
+1  |  5 | OPERATOR    | KEYWORD_MULT                  | *
+1  |  7 | OPERATOR    | KEYWORD_DIVISION              | /
+1  |  9 | SEPARATOR   | KEYWORD_BRACKETS_SQUARE_LEFT  | [
+1  | 11 | SEPARATOR   | KEYWORD_BRACKETS_SQUARE_RIGHT | ]
+1  | 13 | SEPARATOR   | KEYWORD_BRACKETS_LEFT         | (
+1  | 15 | SEPARATOR   | KEYWORD_BRACKETS_RIGHT        | )
+1  | 17 | OPERATOR    | KEYWORD_DOG                   | @
+1  | 19 | OPERATOR    | KEYWORD_CAP                   | ^
+1  | 23 | SEPARATOR   | KEYWORD_COMMA                 | ,
+1  | 25 | OPERATOR    | KEYWORD_COLON                 | :
+1  | 27 | SEPARATOR   | KEYWORD_SEMICOLON             | ;
+1  | 29 | OPERATOR    | KEYWORD_GREATER               | >
+1  | 31 | OPERATOR    | KEYWORD_LESS                  | <
+2  |  1 | SEPARATOR   | KEYWORD_DOUBLE_DOT            | ..
+2  |  4 | OPERATOR    | KEYWORD_ASSIGN                | :=
+2  |  7 | OPERATOR    | KEYWORD_GREATER_OR_EQUAL      | <>
+2  | 10 | OPERATOR    | KEYWORD_GREATER_OR_EQUAL      | >=
+2  | 13 | OPERATOR    | KEYWORD_LESS_OR_EQUAL         | <=
+END OF FILE

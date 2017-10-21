@@ -1,0 +1,20 @@
+1  |  1 | KEYWORD     | KEYWORD_PROGRAM               | Program
+1  |  9 | IDENTIFIER  | VARIABLE                      | xyz
+1  | 12 | SEPARATOR   | KEYWORD_SEMICOLON             | ;
+2  |  1 | KEYWORD     | KEYWORD_VAR                   | var
+2  |  5 | IDENTIFIER  | VARIABLE                      | i
+2  |  6 | OPERATOR    | KEYWORD_COLON                 | :
+2  |  8 | INTEGER     | KEYWORD_INT                   | Integer
+2  | 15 | SEPARATOR   | KEYWORD_SEMICOLON             | ;
+3  |  2 | IDENTIFIER  | VARIABLE                      | x
+3  |  3 | SEPARATOR   | KEYWORD_COMMA                 | ,
+3  |  4 | IDENTIFIER  | VARIABLE                      | y
+3  |  5 | SEPARATOR   | KEYWORD_COMMA                 | ,
+3  |  6 | IDENTIFIER  | VARIABLE                      | z
+3  |  7 | OPERATOR    | KEYWORD_COLON                 | :
+3  |  9 | IDENTIFIER  | VARIABLE                      | Real
+4  |  1 | SEPARATOR   | KEYWORD_SEMICOLON             | ;
+5  |  1 | KEYWORD     | KEYWORD_BEGIN                 | begin
+10 |  1 | KEYWORD     | KEYWORD_END                   | end
+10 |  4 | SEPARATOR   | KEYWORD_DOT                   | .
+END OF FILE

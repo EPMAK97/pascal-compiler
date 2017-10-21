@@ -1,0 +1,16 @@
+1  |  2 | IDENTIFIER  | VARIABLE                      | a
+1  |  4 | OPERATOR    | KEYWORD_ASSIGN                | :=
+1  |  7 | INTEGER     | KEYWORD_INTEGER               | 5
+1  |  9 | OPERATOR    | KEYWORD_DIV                   | div
+1  | 13 | INTEGER     | KEYWORD_INTEGER               | 7
+1  | 15 | OPERATOR    | KEYWORD_MINUS                 | -
+1  | 17 | INTEGER     | KEYWORD_INTEGER               | 4
+1  | 19 | OPERATOR    | KEYWORD_PLUS                  | +
+1  | 20 | OPERATOR    | KEYWORD_MINUS                 | -
+1  | 21 | INTEGER     | KEYWORD_INTEGER               | 3
+1  | 22 | OPERATOR    | KEYWORD_MULT                  | *
+1  | 23 | INTEGER     | KEYWORD_INTEGER               | 6
+1  | 24 | OPERATOR    | KEYWORD_MOD                   | mod
+1  | 28 | INTEGER     | KEYWORD_INTEGER               | 89
+1  | 30 | SEPARATOR   | KEYWORD_SEMICOLON             | ;
+END OF FILE

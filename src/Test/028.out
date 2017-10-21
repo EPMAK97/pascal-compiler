@@ -1,0 +1,4 @@
+1  |  1 | DOUBLE      | KEYWORD_DOUBLE                | 3.E3
+2  |  1 | DOUBLE      | KEYWORD_DOUBLE                | 4.e4
+3  |  1 | DOUBLE      | KEYWORD_DOUBLE                | 5.5e56.6E6
+END OF FILE

@@ -7,4 +7,5 @@ begin
 	s := 'Hello world';
 	Writeln( s );
 	Readln;
+	[]
 end.

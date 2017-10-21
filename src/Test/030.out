@@ -1,0 +1,17 @@
+1  |  1 | IDENTIFIER  | VARIABLE                      | identifier
+2  |  1 | IDENTIFIER  | VARIABLE                      | a__
+3  |  1 | IDENTIFIER  | VARIABLE                      | __a
+4  |  1 | IDENTIFIER  | VARIABLE                      | b_b_B_b_B
+5  |  1 | IDENTIFIER  | VARIABLE                      | a
+5  |  2 | INTEGER     | KEYWORD_INTEGER               | 4
+5  |  3 | IDENTIFIER  | VARIABLE                      | A
+6  |  1 | IDENTIFIER  | VARIABLE                      | zzZzz
+7  |  1 | IDENTIFIER  | VARIABLE                      | z
+7  |  2 | INTEGER     | KEYWORD_INTEGER               | 3
+7  |  3 | IDENTIFIER  | VARIABLE                      | _
+7  |  4 | INTEGER     | KEYWORD_INTEGER               | 3
+8  |  1 | IDENTIFIER  | VARIABLE                      | x_
+8  |  3 | INTEGER     | KEYWORD_INTEGER               | 4
+9  |  1 | IDENTIFIER  | VARIABLE                      | U_U
+10 |  1 | IDENTIFIER  | VARIABLE                      | O_o
+END OF FILE
