@@ -1,7 +1,7 @@
 package Tokens;
 
-
 import Tokens.Types.Pair;
+import Tokens.Types.TokenValue;
 
 public class Token {
     private Pair pair;
@@ -16,9 +16,30 @@ public class Token {
         this.value = value;
     }
 
+    public String getValue() {
+        return value;
+    }
+
+    public TokenValue getTokenValue() {
+        return pair.getTokenValue();
+    }
+
+
+    public String genSpace(int count) {
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < count; i++) {
+            builder.append(" ");
+        }
+        return builder.toString();
+    }
+
     @Override
     public String toString() {
-        String sp = "\t";
-        return posX + sp + posY + sp + pair.getTokenType() + sp + pair.getTokenValue() + sp + value + sp + '\n';
+        return posX + genSpace(3 - String.valueOf(posX).length()) + "|"
+                + genSpace(3 - String.valueOf(posY).length()) + posY + " | "
+                + pair.getTokenType() + genSpace(11 - pair.getTokenType().toString().length()) + " | "
+                + pair.getTokenValue() + genSpace(30 - pair.getTokenValue().toString().length()) + "| "
+                + value;
     }
+
 }
