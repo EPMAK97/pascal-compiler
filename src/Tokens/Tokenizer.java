@@ -9,7 +9,6 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Locale;
 
 public class Tokenizer {
     private static Reader reader;
@@ -25,34 +24,34 @@ public class Tokenizer {
     static {
         builder     = new StringBuilder();
         operators   = new HashMap<String, Pair>() {{
-            put("+", new Pair(TokenType.OPERATOR, TokenValue.KEYWORD_PLUS));
-            put("-", new Pair(TokenType.OPERATOR, TokenValue.KEYWORD_MINUS));
-            put("*", new Pair(TokenType.OPERATOR, TokenValue.KEYWORD_MULT));
-            put("/", new Pair(TokenType.OPERATOR, TokenValue.KEYWORD_DIVISION));
-            put("@", new Pair(TokenType.OPERATOR, TokenValue.KEYWORD_DOG));
-            put("#", new Pair(TokenType.OPERATOR, TokenValue.KEYWORD_LATTICE));
-            put("$", new Pair(TokenType.OPERATOR, TokenValue.KEYWORD_DOLLAR));
-            put("^", new Pair(TokenType.OPERATOR, TokenValue.KEYWORD_CAP));
-            put("=", new Pair(TokenType.OPERATOR, TokenValue.KEYWORD_EQUAL));
-            put(">", new Pair(TokenType.OPERATOR, TokenValue.KEYWORD_GREATER));
-            put("<", new Pair(TokenType.OPERATOR, TokenValue.KEYWORD_LESS));
-            put(":", new Pair(TokenType.OPERATOR, TokenValue.KEYWORD_COLON));
+            put("+", new Pair(TokenType.OPERATOR, TokenValue.OP_PLUS));
+            put("-", new Pair(TokenType.OPERATOR, TokenValue.OP_MINUS));
+            put("*", new Pair(TokenType.OPERATOR, TokenValue.OP_MULT));
+            put("/", new Pair(TokenType.OPERATOR, TokenValue.OP_DIVISION));
+            put("@", new Pair(TokenType.OPERATOR, TokenValue.OP_DOG));
+            put("#", new Pair(TokenType.OPERATOR, TokenValue.OP_LATTICE));
+            put("$", new Pair(TokenType.OPERATOR, TokenValue.OP_DOLLAR));
+            put("^", new Pair(TokenType.OPERATOR, TokenValue.OP_CAP));
+            put("=", new Pair(TokenType.OPERATOR, TokenValue.OP_EQUAL));
+            put(">", new Pair(TokenType.OPERATOR, TokenValue.OP_GREATER));
+            put("<", new Pair(TokenType.OPERATOR, TokenValue.OP_LESS));
+            put(":", new Pair(TokenType.OPERATOR, TokenValue.OP_COLON));
         }};
         separators = new HashMap<String, Pair>() {{
-            put("[", new Pair(TokenType.SEPARATOR, TokenValue.KEYWORD_BRACKETS_SQUARE_LEFT));
-            put("]", new Pair(TokenType.SEPARATOR, TokenValue.KEYWORD_BRACKETS_SQUARE_RIGHT));
-            put("(", new Pair(TokenType.SEPARATOR, TokenValue.KEYWORD_BRACKETS_LEFT));
-            put(")", new Pair(TokenType.SEPARATOR, TokenValue.KEYWORD_BRACKETS_RIGHT));
-            put("{", new Pair(TokenType.SEPARATOR, TokenValue.KEYWORD_BRACKETS_FIGURE_LEFT));
-            put("}", new Pair(TokenType.SEPARATOR, TokenValue.KEYWORD_BRACKETS_FIGURE_RIGHT));
-            put(",", new Pair(TokenType.SEPARATOR, TokenValue.KEYWORD_COMMA));
-            put(".", new Pair(TokenType.SEPARATOR, TokenValue.KEYWORD_DOT));
-            put(";", new Pair(TokenType.SEPARATOR, TokenValue.KEYWORD_SEMICOLON));
+            put("[", new Pair(TokenType.SEPARATOR, TokenValue.SEP_BRACKETS_SQUARE_LEFT));
+            put("]", new Pair(TokenType.SEPARATOR, TokenValue.SEP_BRACKETS_SQUARE_RIGHT));
+            put("(", new Pair(TokenType.SEPARATOR, TokenValue.SEP_BRACKETS_LEFT));
+            put(")", new Pair(TokenType.SEPARATOR, TokenValue.SEP_BRACKETS_RIGHT));
+            put("{", new Pair(TokenType.SEPARATOR, TokenValue.SEP_BRACKETS_FIGURE_LEFT));
+            put("}", new Pair(TokenType.SEPARATOR, TokenValue.SEP_BRACKETS_FIGURE_RIGHT));
+            put(",", new Pair(TokenType.SEPARATOR, TokenValue.SEP_COMMA));
+            put(".", new Pair(TokenType.SEPARATOR, TokenValue.SEP_DOT));
+            put(";", new Pair(TokenType.SEPARATOR, TokenValue.SEP_SEMICOLON));
         }};
         words = new HashMap<String, Pair>(){{
-            put("integer",  new Pair(TokenType.INTEGER, TokenValue.KEYWORD_INT));
-            put("double",   new Pair(TokenType.DOUBLE, TokenValue.KEYWORD_DOUBLE));
-            put("char",     new Pair(TokenType.KEYWORD, TokenValue.KEYWORD_CHARACTER));
+            put("integer",  new Pair(TokenType.INTEGER, TokenValue.CONST_INTEGER));
+            put("double",   new Pair(TokenType.DOUBLE, TokenValue.CONST_DOUBLE));
+            put("char",     new Pair(TokenType.KEYWORD, TokenValue.CONST_CHARACTER));
             put("var",      new Pair(TokenType.KEYWORD, TokenValue.KEYWORD_VAR));
             put("and",      new Pair(TokenType.OPERATOR, TokenValue.KEYWORD_AND));
             put("array",    new Pair(TokenType.KEYWORD, TokenValue.KEYWORD_ARRAY));
@@ -185,8 +184,12 @@ public class Tokenizer {
 //        }
     }
 
-    private void passToken(Pair pair, int x, int y, String value) {
-        setCurrentToken(new Token(pair, x, y, value));
+    private void passToken(Pair pair, int x, int y, String text,String value) {
+        setCurrentToken(new Token(pair, x, y, text, value));
+    }
+
+    private void passToken(Pair pair, int x, int y, String text) {
+        setCurrentToken(new Token(pair, x, y, text));
     }
 
     private void prepareException(String s) {
@@ -201,12 +204,12 @@ public class Tokenizer {
     private void prepareNumberToken(int x, int y) {
         if (isDouble) {
             //System.out.println(builder.toString());
-            passToken(new Pair(TokenType.DOUBLE, TokenValue.KEYWORD_DOUBLE), x, y,
-                    String.valueOf(Double.parseDouble(builder.toString())));
+            passToken(new Pair(TokenType.DOUBLE, TokenValue.CONST_DOUBLE), x, y,
+                    builder.toString(), String.valueOf(Double.parseDouble(builder.toString())));
         }
         else
-            passToken(new Pair(TokenType.INTEGER, TokenValue.KEYWORD_INTEGER), x, y,
-                    String.valueOf(Integer.parseInt(builder.toString())));
+            passToken(new Pair(TokenType.INTEGER, TokenValue.CONST_INTEGER), x, y,
+                    builder.toString(), String.valueOf(Integer.parseInt(builder.toString())));
     }
 
     private void prepareWordToken(int x, int y) {
@@ -317,7 +320,7 @@ public class Tokenizer {
                 nextChar = reader.getChar();
             if (nextChar != '\0') {
                 if (nextChar == '.')
-                    passToken(new Pair(TokenType.SEPARATOR, TokenValue.KEYWORD_DOUBLE_DOT),
+                    passToken(new Pair(TokenType.SEPARATOR, TokenValue.SEP_DOUBLE_DOT),
                             reader.xPos, reader.yPos - 1, "..");
                 else {
                     passToken(separators.get(Character.toString(c)),
@@ -346,7 +349,7 @@ public class Tokenizer {
             char nextChar = reader.getChar();
             if (nextChar != '*') {
                 reader.singleCharacterRollback();
-                passToken(new Pair(TokenType.SEPARATOR, TokenValue.KEYWORD_BRACKETS_LEFT),
+                passToken(new Pair(TokenType.SEPARATOR, TokenValue.SEP_BRACKETS_LEFT),
                         reader.xPos, reader.yPos, Character.toString(c));
             }
             else {
@@ -393,7 +396,7 @@ public class Tokenizer {
                 break;
             case '<' :
                 if (nextChar == '>')
-                    passToken(new Pair(TokenType.OPERATOR, TokenValue.KEYWORD_GREATER_OR_EQUAL),
+                    passToken(new Pair(TokenType.OPERATOR, TokenValue.OP_NOT_EQUAL),
                             reader.xPos, reader.yPos - 1, "<>");
                 else if (nextChar == '=')
                     passToken(new Pair(TokenType.OPERATOR, TokenValue.KEYWORD_LESS_OR_EQUAL),
@@ -423,13 +426,15 @@ public class Tokenizer {
             case '$' :
                 reader.singleCharacterRollback();
                 nextChar = reader.getChar();
-                while (String.valueOf(nextChar).matches("[0-9]|A|B|C|D|E|F|")) {
+                while (String.valueOf(nextChar).matches("[0-9]|A|B|C|D|E|F")) {
                     builder.append(nextChar);
                     nextChar = reader.getChar();
                 }
                 if (Long.parseLong(builder.toString(), 16) <= 4294967295.0) {
-                    setCurrentToken(new Token(new Pair(TokenType.HEX, TokenValue.CONST_HEX),
-                            x, y, builder.toString(), String.valueOf(Long.parseLong(builder.toString(), 16))));
+                    passToken(new Pair(TokenType.HEX, TokenValue.CONST_HEX),
+                            x, y, "$" + builder.toString(),
+                            String.valueOf(Long.parseLong(builder.toString(), 16)));
+                    reader.singleCharacterRollback();
                 }
                 else
                     try {

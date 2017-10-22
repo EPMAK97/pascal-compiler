@@ -4,25 +4,25 @@ import Tokens.Types.Pair;
 import Tokens.Types.TokenValue;
 
 public class Token {
-    private Pair pair;
-    private int posX;
-    private int posY;
-    private String text;
-    private String value;
+    private Pair pair = null;
+    private String posX = null;
+    private String posY = null;
+    private String text = null;
+    private String value = null;
 
-    public Token(Pair type, int posX, int posY, String value) {
+    public Token(Pair type, int posX, int posY, String text) {
         this.pair = type;
-        this.posX = posX;
-        this.posY = posY;
-        this.value = value;
+        this.posX = String.valueOf(posX);
+        this.posY = String.valueOf(posY);
+        this.text = text;
     }
 
     public Token(Pair type, int posX, int posY, String text, String value) {
         this.pair = type;
-        this.posX = posX;
-        this.posY = posY;
-        this.value = value;
+        this.posX = String.valueOf(posX);
+        this.posY = String.valueOf(posY);
         this.text = text;
+        this.value = value;
     }
 
     public String getValue() {
@@ -44,11 +44,15 @@ public class Token {
 
     @Override
     public String toString() {
-        return posX + genSpace(3 - String.valueOf(posX).length()) + "|"
-                + genSpace(3 - String.valueOf(posY).length()) + posY + " | "
-                + pair.getTokenType() + genSpace(11 - pair.getTokenType().toString().length()) + " | "
-                + pair.getTokenValue() + genSpace(30 - pair.getTokenValue().toString().length()) + "| "
-                + value;
+        String tokenType = pair.getTokenType().toString();
+        String tokenValue = pair.getTokenValue().toString();
+        String lexem = posX + genSpace(3 - posX.length()) + "|"
+                + genSpace(3 - posY.length()) + posY + " | "
+                + tokenType + genSpace(11 - tokenType.length()) + " | "
+                + tokenValue + genSpace(28 - tokenValue.length()) + "| "
+                + text + genSpace(10 - text.length()) + "| ";
+        lexem += value == null ? "" : value;
+        return lexem;
     }
 
 }
