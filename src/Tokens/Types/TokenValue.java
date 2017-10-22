@@ -84,4 +84,6 @@ public enum TokenValue {
     KEYWORD_READLN,
 
     VARIABLE,
+
+    CONST_HEX,
 }

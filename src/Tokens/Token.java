@@ -7,6 +7,7 @@ public class Token {
     private Pair pair;
     private int posX;
     private int posY;
+    private String text;
     private String value;
 
     public Token(Pair type, int posX, int posY, String value) {
@@ -14,6 +15,14 @@ public class Token {
         this.posX = posX;
         this.posY = posY;
         this.value = value;
+    }
+
+    public Token(Pair type, int posX, int posY, String text, String value) {
+        this.pair = type;
+        this.posX = posX;
+        this.posY = posY;
+        this.value = value;
+        this.text = text;
     }
 
     public String getValue() {

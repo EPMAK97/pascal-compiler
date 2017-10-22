@@ -8,6 +8,7 @@ public enum TokenType {
     INTEGER,
     DOUBLE,
     STRING,
+    HEX,
     CHARACTER,
     END_OF_FILE,
     UNDEFINED,

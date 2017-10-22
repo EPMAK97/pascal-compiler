@@ -9,6 +9,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Locale;
 
 public class Tokenizer {
     private static Reader reader;
@@ -372,7 +373,10 @@ public class Tokenizer {
     private void parseOperator(char c) {
         // special symbol
         char nextChar = '\0';
-
+        // begin of word
+        int x = reader.xPos;
+        int y = reader.yPos;
+        builder.setLength(0);
         if (reader.lookAhead())
             nextChar = reader.getChar();
 
@@ -415,6 +419,25 @@ public class Tokenizer {
                     passToken(operators.get(c + ""), reader.xPos, reader.yPos - 1, c + "");
                     reader.singleCharacterRollback();
                 }
+                break;
+            case '$' :
+                reader.singleCharacterRollback();
+                nextChar = reader.getChar();
+                while (String.valueOf(nextChar).matches("[0-9]|A|B|C|D|E|F|")) {
+                    builder.append(nextChar);
+                    nextChar = reader.getChar();
+                }
+                if (Long.parseLong(builder.toString(), 16) <= 4294967295.0) {
+                    setCurrentToken(new Token(new Pair(TokenType.HEX, TokenValue.CONST_HEX),
+                            x, y, builder.toString(), String.valueOf(Long.parseLong(builder.toString(), 16))));
+                }
+                else
+                    try {
+                        throw new LexicalException("Overflow");
+                    } catch (LexicalException e) {
+                        reader.singleCharacterRollback();
+                        System.out.println(e.toString());
+                    }
                 break;
             default:
                 if (!operators.containsKey(nextChar + "")) {
