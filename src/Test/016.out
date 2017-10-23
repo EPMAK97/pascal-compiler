@@ -1,2 +1,2 @@
-1  |  1 | STRING      | KEYWORD_UNRESERVED            | We ' D'
+1  |  1 | STRING      | CONST_STRING                | We ' D'   | 
 END OF FILE

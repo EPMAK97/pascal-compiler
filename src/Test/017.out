@@ -1,2 +1,2 @@
-1  |  1 | STRING      | KEYWORD_UNRESERVED            | f''  tt  
+1  |  1 | STRING      | CONST_STRING                | f''  tt   | 
 END OF FILE

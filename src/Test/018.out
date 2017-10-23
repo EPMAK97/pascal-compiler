@@ -1,2 +1,2 @@
-1  |  1 | STRING      | KEYWORD_UNRESERVED            | aaAA'dfsdfsdSDSD'aaaa
+1  |  1 | STRING      | CONST_STRING                | aaAA'dfsdfsdSDSD'aaaa| 
 END OF FILE

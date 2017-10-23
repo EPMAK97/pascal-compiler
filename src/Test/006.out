@@ -1,5 +1,5 @@
-1  |  1 | INTEGER     | KEYWORD_INT                   | integer
-2  |  1 | KEYWORD     | KEYWORD_CHARACTER             | char
-3  |  1 | DOUBLE      | KEYWORD_DOUBLE                | double
-4  |  1 | KEYWORD     | KEYWORD_VAR                   | var
+1  |  1 | INTEGER     | KEYWORD_INTEGER             | integer   | 
+2  |  1 | KEYWORD     | KEYWORD_CHARACTER           | char      | 
+3  |  1 | DOUBLE      | KEYWORD_DOUBLE              | double    | 
+4  |  1 | KEYWORD     | KEYWORD_VAR                 | var       | 
 END OF FILE

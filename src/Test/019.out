@@ -1,2 +1,2 @@
-1  |  1 | STRING      | KEYWORD_UNRESERVED            | a'c'a
+1  |  1 | STRING      | CONST_STRING                | a'c'a     | 
 END OF FILE

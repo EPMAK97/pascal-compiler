@@ -1,7 +1,7 @@
-1  |  1 | DOUBLE      | KEYWORD_DOUBLE                | 7.7e+777
-2  |  1 | DOUBLE      | KEYWORD_DOUBLE                | 888.888E+8888
-3  |  1 | DOUBLE      | KEYWORD_DOUBLE                | 999.999e-9999
-4  |  1 | DOUBLE      | KEYWORD_DOUBLE                | 000.000E-0000
-5  |  1 | DOUBLE      | KEYWORD_DOUBLE                | 1.1e-1
-6  |  1 | DOUBLE      | KEYWORD_DOUBLE                | 2.2E-2
+1  |  1 | DOUBLE      | CONST_DOUBLE                | 7.7e+777  | Infinity
+2  |  1 | DOUBLE      | CONST_DOUBLE                | 888.888E+8888| Infinity
+3  |  1 | DOUBLE      | CONST_DOUBLE                | 999.999e-9999| 0.0
+4  |  1 | DOUBLE      | CONST_DOUBLE                | 000.000E-0000| 0.0
+5  |  1 | DOUBLE      | CONST_DOUBLE                | 1.1e-1    | 0.11
+6  |  1 | DOUBLE      | CONST_DOUBLE                | 2.2E-2    | 0.022
 END OF FILE

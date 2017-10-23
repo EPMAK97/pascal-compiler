@@ -1,2 +1,2 @@
-1  |  1 | DOUBLE      | KEYWORD_DOUBLE                | 14.e14
+1  |  1 | DOUBLE      | CONST_DOUBLE                | 14.e14    | 1.4E15
 END OF FILE

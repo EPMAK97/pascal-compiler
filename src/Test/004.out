@@ -1,4 +1,4 @@
-1  |  1 | DOUBLE      | KEYWORD_DOUBLE                | double
-1  |  8 | IDENTIFIER  | VARIABLE                      | int
-1  | 12 | INTEGER     | KEYWORD_INT                   | integer
+1  |  1 | DOUBLE      | KEYWORD_DOUBLE              | double    | 
+1  |  8 | IDENTIFIER  | VARIABLE                    | int       | 
+1  | 12 | INTEGER     | KEYWORD_INTEGER             | integer   | 
 END OF FILE

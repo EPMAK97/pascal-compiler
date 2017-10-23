@@ -1,34 +1,34 @@
-1  |  1 | KEYWORD     | KEYWORD_FUNCTION              | function
-1  | 10 | IDENTIFIER  | VARIABLE                      | Fact
-1  | 14 | SEPARATOR   | KEYWORD_BRACKETS_LEFT         | (
-1  | 15 | IDENTIFIER  | VARIABLE                      | n
-1  | 16 | OPERATOR    | KEYWORD_COLON                 | :
-1  | 18 | INTEGER     | KEYWORD_INT                   | Integer
-1  | 25 | SEPARATOR   | KEYWORD_BRACKETS_RIGHT        | )
-1  | 26 | OPERATOR    | KEYWORD_COLON                 | :
-1  | 28 | INTEGER     | KEYWORD_INT                   | Integer
-1  | 35 | SEPARATOR   | KEYWORD_SEMICOLON             | ;
-2  |  1 | KEYWORD     | KEYWORD_BEGIN                 | begin
-3  |  2 | KEYWORD     | KEYWORD_IF                    | if
-3  |  5 | IDENTIFIER  | VARIABLE                      | n
-3  |  7 | OPERATOR    | KEYWORD_EQUAL                 | =
-3  |  9 | INTEGER     | KEYWORD_INTEGER               | 1
-3  | 11 | KEYWORD     | KEYWORD_THEN                  | then
-4  |  3 | IDENTIFIER  | VARIABLE                      | Result
-4  | 10 | OPERATOR    | KEYWORD_ASSIGN                | :=
-4  | 13 | INTEGER     | KEYWORD_INTEGER               | 1
-5  |  2 | KEYWORD     | KEYWORD_ELSE                  | else
-6  |  3 | IDENTIFIER  | VARIABLE                      | Result
-6  | 10 | OPERATOR    | KEYWORD_ASSIGN                | :=
-6  | 13 | IDENTIFIER  | VARIABLE                      | n
-6  | 15 | OPERATOR    | KEYWORD_MULT                  | *
-6  | 17 | IDENTIFIER  | VARIABLE                      | Fact
-6  | 21 | SEPARATOR   | KEYWORD_BRACKETS_LEFT         | (
-6  | 22 | IDENTIFIER  | VARIABLE                      | n
-6  | 24 | OPERATOR    | KEYWORD_MINUS                 | -
-6  | 26 | INTEGER     | KEYWORD_INTEGER               | 1
-6  | 27 | SEPARATOR   | KEYWORD_BRACKETS_RIGHT        | )
-6  | 28 | SEPARATOR   | KEYWORD_SEMICOLON             | ;
-7  |  1 | KEYWORD     | KEYWORD_END                   | end
-7  |  4 | SEPARATOR   | KEYWORD_SEMICOLON             | ;
+1  |  1 | KEYWORD     | KEYWORD_FUNCTION            | function  | 
+1  | 10 | IDENTIFIER  | VARIABLE                    | Fact      | 
+1  | 14 | SEPARATOR   | SEP_BRACKETS_LEFT           | (         | 
+1  | 15 | IDENTIFIER  | VARIABLE                    | n         | 
+1  | 16 | OPERATOR    | OP_COLON                    | :         | 
+1  | 18 | INTEGER     | KEYWORD_INTEGER             | Integer   | 
+1  | 25 | SEPARATOR   | SEP_BRACKETS_RIGHT          | )         | 
+1  | 26 | OPERATOR    | OP_COLON                    | :         | 
+1  | 28 | INTEGER     | KEYWORD_INTEGER             | Integer   | 
+1  | 35 | SEPARATOR   | SEP_SEMICOLON               | ;         | 
+2  |  1 | KEYWORD     | KEYWORD_BEGIN               | begin     | 
+3  |  2 | KEYWORD     | KEYWORD_IF                  | if        | 
+3  |  5 | IDENTIFIER  | VARIABLE                    | n         | 
+3  |  7 | OPERATOR    | OP_EQUAL                    | =         | 
+3  |  9 | INTEGER     | CONST_INTEGER               | 1         | 1
+3  | 11 | KEYWORD     | KEYWORD_THEN                | then      | 
+4  |  3 | IDENTIFIER  | VARIABLE                    | Result    | 
+4  | 10 | OPERATOR    | KEYWORD_ASSIGN              | :=        | 
+4  | 13 | INTEGER     | CONST_INTEGER               | 1         | 1
+5  |  2 | KEYWORD     | KEYWORD_ELSE                | else      | 
+6  |  3 | IDENTIFIER  | VARIABLE                    | Result    | 
+6  | 10 | OPERATOR    | KEYWORD_ASSIGN              | :=        | 
+6  | 13 | IDENTIFIER  | VARIABLE                    | n         | 
+6  | 15 | OPERATOR    | OP_MULT                     | *         | 
+6  | 17 | IDENTIFIER  | VARIABLE                    | Fact      | 
+6  | 21 | SEPARATOR   | SEP_BRACKETS_LEFT           | (         | 
+6  | 22 | IDENTIFIER  | VARIABLE                    | n         | 
+6  | 24 | OPERATOR    | OP_MINUS                    | -         | 
+6  | 26 | INTEGER     | CONST_INTEGER               | 1         | 1
+6  | 27 | SEPARATOR   | SEP_BRACKETS_RIGHT          | )         | 
+6  | 28 | SEPARATOR   | SEP_SEMICOLON               | ;         | 
+7  |  1 | KEYWORD     | KEYWORD_END                 | end       | 
+7  |  4 | SEPARATOR   | SEP_SEMICOLON               | ;         | 
 END OF FILE

@@ -1,27 +1,27 @@
-1  |  1 | KEYWORD     | KEYWORD_PROGRAM               | Program
-1  |  9 | IDENTIFIER  | VARIABLE                      | Example
-1  | 16 | SEPARATOR   | KEYWORD_SEMICOLON             | ;
-2  |  1 | IDENTIFIER  | VARIABLE                      | uses
-3  |  2 | IDENTIFIER  | VARIABLE                      | SysUtils
-3  | 10 | SEPARATOR   | KEYWORD_SEMICOLON             | ;
-4  |  1 | KEYWORD     | KEYWORD_VAR                   | var
-5  |  2 | IDENTIFIER  | VARIABLE                      | s
-5  |  3 | OPERATOR    | KEYWORD_COLON                 | :
-5  |  5 | STRING      | KEYWORD_STRING                | String
-5  | 11 | SEPARATOR   | KEYWORD_SEMICOLON             | ;
-6  |  1 | KEYWORD     | KEYWORD_BEGIN                 | begin
-7  |  2 | IDENTIFIER  | VARIABLE                      | s
-7  |  4 | OPERATOR    | KEYWORD_ASSIGN                | :=
-7  |  7 | STRING      | KEYWORD_UNRESERVED            | Hello world
-8  |  2 | KEYWORD     | KEYWORD_WRITELN               | Writeln
-8  |  9 | SEPARATOR   | KEYWORD_BRACKETS_LEFT         | (
-8  | 11 | IDENTIFIER  | VARIABLE                      | s
-8  | 13 | SEPARATOR   | KEYWORD_BRACKETS_RIGHT        | )
-8  | 14 | SEPARATOR   | KEYWORD_SEMICOLON             | ;
-9  |  2 | KEYWORD     | KEYWORD_READLN                | Readln
-9  |  8 | SEPARATOR   | KEYWORD_SEMICOLON             | ;
-10 |  2 | SEPARATOR   | KEYWORD_BRACKETS_SQUARE_LEFT  | [
-10 |  3 | SEPARATOR   | KEYWORD_BRACKETS_SQUARE_RIGHT | ]
-11 |  1 | KEYWORD     | KEYWORD_END                   | end
-11 |  4 | SEPARATOR   | KEYWORD_DOT                   | .
+1  |  1 | KEYWORD     | KEYWORD_PROGRAM             | Program   | 
+1  |  9 | IDENTIFIER  | VARIABLE                    | Example   | 
+1  | 16 | SEPARATOR   | SEP_SEMICOLON               | ;         | 
+2  |  1 | IDENTIFIER  | VARIABLE                    | uses      | 
+3  |  2 | IDENTIFIER  | VARIABLE                    | SysUtils  | 
+3  | 10 | SEPARATOR   | SEP_SEMICOLON               | ;         | 
+4  |  1 | KEYWORD     | KEYWORD_VAR                 | var       | 
+5  |  2 | IDENTIFIER  | VARIABLE                    | s         | 
+5  |  3 | OPERATOR    | OP_COLON                    | :         | 
+5  |  5 | STRING      | KEYWORD_STRING              | String    | 
+5  | 11 | SEPARATOR   | SEP_SEMICOLON               | ;         | 
+6  |  1 | KEYWORD     | KEYWORD_BEGIN               | begin     | 
+7  |  2 | IDENTIFIER  | VARIABLE                    | s         | 
+7  |  4 | OPERATOR    | KEYWORD_ASSIGN              | :=        | 
+7  |  7 | STRING      | CONST_STRING                | Hello world| 
+8  |  2 | KEYWORD     | KEYWORD_WRITELN             | Writeln   | 
+8  |  9 | SEPARATOR   | SEP_BRACKETS_LEFT           | (         | 
+8  | 11 | IDENTIFIER  | VARIABLE                    | s         | 
+8  | 13 | SEPARATOR   | SEP_BRACKETS_RIGHT          | )         | 
+8  | 14 | SEPARATOR   | SEP_SEMICOLON               | ;         | 
+9  |  2 | KEYWORD     | KEYWORD_READLN              | Readln    | 
+9  |  8 | SEPARATOR   | SEP_SEMICOLON               | ;         | 
+10 |  2 | SEPARATOR   | SEP_BRACKETS_SQUARE_LEFT    | [         | 
+10 |  3 | SEPARATOR   | SEP_BRACKETS_SQUARE_RIGHT   | ]         | 
+11 |  1 | KEYWORD     | KEYWORD_END                 | end       | 
+11 |  4 | SEPARATOR   | SEP_DOT                     | .         | 
 END OF FILE

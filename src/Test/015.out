@@ -1,2 +1,2 @@
-1  |  1 | STRING      | KEYWORD_UNRESERVED            | Hello world!
+1  |  1 | STRING      | CONST_STRING                | Hello world!| 
 END OF FILE

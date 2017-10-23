@@ -1,2 +1,2 @@
-1  |  1 | DOUBLE      | KEYWORD_DOUBLE                | 12345.12345
+1  |  1 | DOUBLE      | CONST_DOUBLE                | 12345.12345| 12345.12345
 END OF FILE
