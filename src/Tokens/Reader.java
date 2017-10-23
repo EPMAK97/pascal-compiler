@@ -56,6 +56,8 @@ public class Reader {
         yPos--;
     }
 
+    public boolean endOfLine() { return currentString.length() - Math.abs(yPos) == 0; }
+
     public char previousCharacter() {
         return  currentString.charAt(yPos - 3);
     }

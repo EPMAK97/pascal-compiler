@@ -49,9 +49,9 @@ public class Tokenizer {
             put(";", new Pair(TokenType.SEPARATOR, TokenValue.SEP_SEMICOLON));
         }};
         words = new HashMap<String, Pair>(){{
-            put("integer",  new Pair(TokenType.INTEGER, TokenValue.CONST_INTEGER));
-            put("double",   new Pair(TokenType.DOUBLE, TokenValue.CONST_DOUBLE));
-            put("char",     new Pair(TokenType.KEYWORD, TokenValue.CONST_CHARACTER));
+            put("integer",  new Pair(TokenType.INTEGER, TokenValue.KEYWORD_INTEGER));
+            put("double",   new Pair(TokenType.DOUBLE, TokenValue.KEYWORD_DOUBLE));
+            put("char",     new Pair(TokenType.KEYWORD, TokenValue.KEYWORD_CHARACTER));
             put("var",      new Pair(TokenType.KEYWORD, TokenValue.KEYWORD_VAR));
             put("and",      new Pair(TokenType.OPERATOR, TokenValue.KEYWORD_AND));
             put("array",    new Pair(TokenType.KEYWORD, TokenValue.KEYWORD_ARRAY));
@@ -115,13 +115,13 @@ public class Tokenizer {
     }
 
     public Tokenizer(String filePath) {
-        reader          = new Reader(filePath);
-        File directory = new File("./src/Test/output.txt");
-        try {
-            bufferedWriter = new BufferedWriter(new FileWriter(directory));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        reader         = new Reader(filePath);
+//        File directory = new File("./src/Test/output.txt");
+//        try {
+//            bufferedWriter = new BufferedWriter(new FileWriter(directory));
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
     }
 
     private void setCurrentToken(Token currentToken) {
@@ -148,13 +148,21 @@ public class Tokenizer {
         currentToken = null;
         //tokenArrayList.clear();
         char c = reader.getChar();
-        try {
-            if (c == '\0') {
-                write("END OF FILE");
-                bufferedWriter.close();
-                return false;
-            }
-        } catch (IOException e) {
+
+//        if (String.valueOf(c).matches("\\s+"))
+//            Next();
+
+//        try {
+//            if (c == '\0') {
+//                write("END OF FILE");
+//                bufferedWriter.close();
+//                return false;
+//            }
+//        } catch (IOException e) {
+//        }
+        if (c == '\0') {
+            System.out.println("END OF FILE");
+            return false;
         }
         identifyType(c);
         return hasNext;
@@ -162,11 +170,11 @@ public class Tokenizer {
 
     private void write(String s) {
         //System.out.println(s);
-        try {
-            bufferedWriter.write(s);
-            bufferedWriter.newLine();
-        } catch (IOException e) {
-        }
+//        try {
+//            bufferedWriter.write(s);
+//            bufferedWriter.newLine();
+//        } catch (IOException e) {
+//        }
     }
 
     public void print() {
@@ -305,10 +313,16 @@ public class Tokenizer {
 
             if (currentState == State.NOT_NUMBER)
                 prepareNumberToken(x, y);
-            else if (currentState != State.EXCEPTION)
-                c = reader.getChar();
+            else if (currentState != State.EXCEPTION) {
+                if (!reader.endOfLine())
+                    c = reader.getChar();
+                else {
+                    prepareNumberToken(x, y);
+                    currentState = State.NOT_NUMBER;
+                }
+            }
         }
-        if (currentState == State.NOT_NUMBER)
+        if (currentState == State.NOT_NUMBER && !reader.endOfLine())
             reader.singleCharacterRollback();
     }
 
@@ -403,7 +417,8 @@ public class Tokenizer {
                             reader.xPos, reader.yPos - 1, "<=");
                 else {
                     passToken(operators.get(c + ""), reader.xPos, reader.yPos - 1, c + "");
-                    reader.singleCharacterRollback();
+                    if (reader.lookAhead())
+                        reader.singleCharacterRollback();
                 }
                 break;
             case '>' :
@@ -426,7 +441,7 @@ public class Tokenizer {
             case '$' :
                 reader.singleCharacterRollback();
                 nextChar = reader.getChar();
-                while (String.valueOf(nextChar).matches("[0-9]|A|B|C|D|E|F")) {
+                while (String.valueOf(nextChar).matches("[0-9A-F]")) {
                     builder.append(nextChar);
                     nextChar = reader.getChar();
                 }
@@ -491,7 +506,7 @@ public class Tokenizer {
             }
 
             if (firstChar != '\0')
-                passToken(new Pair(TokenType.STRING, TokenValue.KEYWORD_UNRESERVED), x, y, builder.toString());
+                passToken(new Pair(TokenType.STRING, TokenValue.CONST_STRING), x, y, builder.toString());
 
             return;
         }

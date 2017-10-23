@@ -6,8 +6,12 @@ public enum TokenValue {
     CONST_DOUBLE,
     CONST_CHARACTER,
     CONST_HEX,
+    CONST_STRING,
 
     // Keywords
+    KEYWORD_INTEGER,
+    KEYWORD_DOUBLE,
+    KEYWORD_CHARACTER,
     KEYWORD_VAR,
     KEYWORD_AND,
     KEYWORD_ARRAY,

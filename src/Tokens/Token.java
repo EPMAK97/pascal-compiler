@@ -26,8 +26,10 @@ public class Token {
     }
 
     public String getValue() {
-        return value;
+        return value == null ? "" : value;
     }
+
+    public String getText() {return text == null ? "" : text; }
 
     public TokenValue getTokenValue() {
         return pair.getTokenValue();
