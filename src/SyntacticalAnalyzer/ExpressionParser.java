@@ -26,6 +26,8 @@ public class ExpressionParser {
             return token.getText();
         }
 
+        public void print() { print("", true); }
+
         private void print(String prefix, boolean isTail) {
             System.out.println(prefix + (isTail ? "└── " : "├── ") + token.getText());
             if (children != null) {
