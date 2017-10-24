@@ -1,13 +1,5 @@
 package Tokens;
 
-import Tokens.Types.Pair;
-import Tokens.Types.TokenType;
-import Tokens.Types.TokenValue;
-
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
 import java.util.HashMap;
 
 public class Tokenizer {
@@ -19,7 +11,6 @@ public class Tokenizer {
     private boolean hasNext = true;
 
     private Token currentToken;
-    private BufferedWriter bufferedWriter;
 
     static {
         builder     = new StringBuilder();
@@ -111,7 +102,6 @@ public class Tokenizer {
         WAITING_EXP,
         WAITING_PLUS_MINUS,
         WAITING_NUMBERS,
-        EXCEPTION,
     }
 
     public Tokenizer(String filePath) {
@@ -133,63 +123,42 @@ public class Tokenizer {
 
     public Token getCurrentToken() { return currentToken; }
 
-    private void identifyType(char c) {
+    private void identifyType(char c) throws LexicalException {
         if (String.valueOf(c).matches("[a-zA-Z]|_|\'"))
             parseWord(c);
-        if (separators.containsKey(Character.toString(c)))
+        else if (separators.containsKey(Character.toString(c)))
             parseSeparator(c);
-        if (operators.containsKey(Character.toString(c)))
+        else if (operators.containsKey(Character.toString(c)))
             parseOperator(c);
-        if (isNum(c))
+        else if (isNum(c))
             parseNum(c);
+        else if (c == ' ')
+            identifyType(reader.getChar());
     }
 
     public boolean Next() {
         currentToken = null;
         //tokenArrayList.clear();
         char c = reader.getChar();
-
-//        if (String.valueOf(c).matches("\\s+"))
-//            Next();
-
-//        try {
-//            if (c == '\0') {
-//                write("END OF FILE");
-//                bufferedWriter.close();
-//                return false;
-//            }
-//        } catch (IOException e) {
-//        }
         if (c == '\0') {
             System.out.println("END OF FILE");
             return false;
         }
-        identifyType(c);
+        try {
+            identifyType(c);
+        } catch (LexicalException e) {
+            System.out.println(e.getMessage());
+            return false;
+        } catch (NumberFormatException e) {
+            System.out.println("Exception: overflow");
+            return false;
+        }
         return hasNext;
     }
 
-    private void write(String s) {
-        //System.out.println(s);
-//        try {
-//            bufferedWriter.write(s);
-//            bufferedWriter.newLine();
-//        } catch (IOException e) {
-//        }
-    }
-
     public void print() {
-//        try {
-//            if (currentToken != null) {
-//                bufferedWriter.write(currentToken.toString());
-//                bufferedWriter.newLine();
-//            }
-//        } catch (IOException e) {
-//        }
         if (currentToken != null)
             System.out.println(currentToken);
-//        for (Token aTokenArrayList : tokenArrayList) {
-//            System.out.print(aTokenArrayList);
-//        }
     }
 
     private void passToken(Pair pair, int x, int y, String text,String value) {
@@ -198,15 +167,6 @@ public class Tokenizer {
 
     private void passToken(Pair pair, int x, int y, String text) {
         setCurrentToken(new Token(pair, x, y, text));
-    }
-
-    private void prepareException(String s) {
-        try {
-            throw new LexicalException(s);
-        } catch (LexicalException e) {
-            currentState = State.EXCEPTION;
-            System.out.println(e.toString());
-        }
     }
 
     private void prepareNumberToken(int x, int y) {
@@ -227,11 +187,9 @@ public class Tokenizer {
             passToken(new Pair(TokenType.IDENTIFIER, TokenValue.VARIABLE), x, y, builder.toString());
     }
 
-    private boolean isValidState() {
-        return currentState != State.NOT_NUMBER && currentState != State.EXCEPTION;
-    }
+    private boolean isValidState() { return currentState != State.NOT_NUMBER; }
 
-    private void parseNum(char c) {
+    private void parseNum(char c) throws LexicalException {
 
         // begin of number
         int x = reader.xPos;
@@ -279,7 +237,7 @@ public class Tokenizer {
                         currentState = State.NOT_NUMBER;
                     }
                     else if (lastChar == '.')
-                        prepareException("The number can't end at the dot");
+                        throw new LexicalException("Exception: the number can't end at the dot");
                     else
                         currentState = State.NOT_NUMBER;
                     break;
@@ -296,7 +254,7 @@ public class Tokenizer {
                     else if (isNum(c))
                         builder.append(c);
                     else if (lastChar == 'e' || lastChar == 'E')
-                        prepareException("The number can't end at the exp");
+                        throw new LexicalException("Exception: the number can't end at the exp");
                     else
                         currentState = State.NOT_NUMBER;
                     break;
@@ -305,28 +263,30 @@ public class Tokenizer {
                     if (isNum(c))
                         builder.append(c);
                     else if (lastChar == '+' || lastChar == '-')
-                        prepareException("The number can't end at the symbol of plus or minus");
+                        throw new LexicalException("Exception: the number can't end at the symbol of plus or minus");
                     else
                         currentState = State.NOT_NUMBER;
                     break;
             }
 
-            if (currentState == State.NOT_NUMBER)
+            if (currentState == State.NOT_NUMBER) {
                 prepareNumberToken(x, y);
-            else if (currentState != State.EXCEPTION) {
+            }
+            else {
                 if (!reader.endOfLine())
                     c = reader.getChar();
                 else {
                     prepareNumberToken(x, y);
-                    currentState = State.NOT_NUMBER;
+                    //currentState = State.NOT_NUMBER;
+                    return;
                 }
             }
         }
-        if (currentState == State.NOT_NUMBER && !reader.endOfLine())
+        if (currentState == State.NOT_NUMBER || reader.endOfLine())
             reader.singleCharacterRollback();
     }
 
-    private void parseSeparator(char c) {
+    private void parseSeparator(char c) throws LexicalException {
         if (c == '.') {
             // special symbol
             char nextChar = '\0';
@@ -350,13 +310,8 @@ public class Tokenizer {
             char nextChar = '\0';
             while(nextChar != '}') {
                 nextChar = reader.getChar();
-                try {
-                    if (nextChar == '\0')
-                        throw new LexicalException("UNCLOSED COMMENT");
-                } catch (LexicalException e) {
-                    write(e.toString());
-                    break;
-                }
+                if (nextChar == '\0')
+                    throw new LexicalException("Exception: unclosed comment");
             }
         }
         else if (c == '(') {
@@ -371,13 +326,8 @@ public class Tokenizer {
                 char secondChar = '\0';
                 while(secondChar != ')') {
                     firstChar = reader.getChar();
-                    try {
-                        if (firstChar == '\0')
-                            throw new LexicalException("UNCLOSED COMMENT");
-                    } catch (LexicalException e) {
-                        write(e.toString());
-                        break;
-                    }
+                    if (firstChar == '\0')
+                        throw new LexicalException("Exception: unclosed comment");
                     if (firstChar == '*')
                         secondChar = reader.getChar();
                 }
@@ -445,19 +395,10 @@ public class Tokenizer {
                     builder.append(nextChar);
                     nextChar = reader.getChar();
                 }
-                if (Long.parseLong(builder.toString(), 16) <= 4294967295.0) {
-                    passToken(new Pair(TokenType.HEX, TokenValue.CONST_HEX),
-                            x, y, "$" + builder.toString(),
-                            String.valueOf(Long.parseLong(builder.toString(), 16)));
+                Integer valueOfHex = Integer.parseInt(builder.toString(), 16);
+                passToken(new Pair(TokenType.HEX, TokenValue.CONST_HEX),
+                        x, y, "$" + builder.toString(), valueOfHex.toString());
                     reader.singleCharacterRollback();
-                }
-                else
-                    try {
-                        throw new LexicalException("Overflow");
-                    } catch (LexicalException e) {
-                        reader.singleCharacterRollback();
-                        System.out.println(e.toString());
-                    }
                 break;
             default:
                 if (!operators.containsKey(nextChar + "")) {
@@ -473,7 +414,7 @@ public class Tokenizer {
         }
     }
 
-    private void parseWord(char c) {
+    private void parseWord(char c) throws LexicalException {
         // begin of word
         int x = reader.xPos;
         int y = reader.yPos;
@@ -484,15 +425,8 @@ public class Tokenizer {
             char secondChar;
             while(true) {
                 firstChar = reader.getChar();
-                try {
-                    if (firstChar == '\0') {
-                        throw new LexicalException("unclosed apostrophe");
-                    }
-                } catch (LexicalException e) {
-                    write(e.toString());
-                    break;
-                }
-
+                if (firstChar == '\0')
+                    throw new LexicalException("Exception: unclosed apostrophe");
                 if (firstChar == '\'') {
                     secondChar = reader.getChar();
                     if (secondChar == '\'') {
@@ -504,10 +438,7 @@ public class Tokenizer {
                 }
                 builder.append(firstChar);
             }
-
-            if (firstChar != '\0')
-                passToken(new Pair(TokenType.STRING, TokenValue.CONST_STRING), x, y, builder.toString());
-
+            passToken(new Pair(TokenType.STRING, TokenValue.CONST_STRING), x, y, builder.toString());
             return;
         }
 
