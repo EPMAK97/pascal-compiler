@@ -4,6 +4,7 @@
 4  |  1 | IDENTIFIER  | VARIABLE                    | b_b_B_b_B | 
 5  |  1 | IDENTIFIER  | VARIABLE                    | a         | 
 5  |  2 | INTEGER     | CONST_INTEGER               | 4         | 4
+5  |  3 | IDENTIFIER  | VARIABLE                    | A         | 
 6  |  1 | IDENTIFIER  | VARIABLE                    | zzZzz     | 
 7  |  1 | IDENTIFIER  | VARIABLE                    | z         | 
 7  |  2 | INTEGER     | CONST_INTEGER               | 3         | 3
