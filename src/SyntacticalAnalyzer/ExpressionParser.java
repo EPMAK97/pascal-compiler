@@ -3,7 +3,7 @@ package SyntacticalAnalyzer;
 import Tokens.LexicalException;
 import Tokens.Token;
 import Tokens.Tokenizer;
-import Tokens.Types.TokenValue;
+import Tokens.TokenValue;
 
 import java.util.ArrayList;
 
@@ -13,11 +13,11 @@ public class ExpressionParser {
 
     public abstract class Node {
 
-        ArrayList<Node> childs;
+        ArrayList<Node> children;
         Token token;
 
-        public Node(ArrayList<Node> childs, Token token) {
-            this.childs = childs;
+        public Node(ArrayList<Node> children, Token token) {
+            this.children = children;
             this.token = token;
         }
 
@@ -26,20 +26,14 @@ public class ExpressionParser {
             return token.getText();
         }
 
-        public abstract void print(String indent);
-
-        public void print() {
-            print("", true);
-        }
-
         private void print(String prefix, boolean isTail) {
             System.out.println(prefix + (isTail ? "└── " : "├── ") + token.getText());
-            if (childs != null) {
-                for (int i = 0; i < childs.size() - 1; i++) {
-                    childs.get(i).print(prefix + (isTail ? "    " : "│   "), false);
+            if (children != null) {
+                for (int i = 0; i < children.size() - 1; i++) {
+                    children.get(i).print(prefix + (isTail ? "    " : "│   "), false);
                 }
-                if (childs.size() > 0) {
-                    childs.get(childs.size() - 1)
+                if (children.size() > 0) {
+                    children.get(children.size() - 1)
                             .print(prefix + (isTail ? "    " : "│   "), true);
                 }
             }
@@ -53,21 +47,12 @@ public class ExpressionParser {
             super(childs, token);
         }
 
-        @Override
-        public void print(String indent) {
-            System.out.println(indent + token.getText());
-        }
     }
 
     public class ConstNode extends Node {
 
         public ConstNode(ArrayList<Node> childs, Token token) {
             super(childs, token);
-        }
-
-        @Override
-        public void print(String indent) {
-            System.out.println(indent + token.getText());
         }
 
     }
@@ -78,17 +63,6 @@ public class ExpressionParser {
             super(childs, token);
         }
 
-        @Override
-        public void print(String indent) {
-            System.out.println(indent + token.getText());
-            String indent1 = indent + "     ";
-            if (childs.get(1).childs == null)
-                indent1 += "|";
-            for (Node n : childs) {
-                n.print(indent1);
-            }
-        }
-
     }
 
     public ExpressionParser(String filePath) {
@@ -96,11 +70,17 @@ public class ExpressionParser {
     }
 
     public Node parse() {
-        Node e = parseExpr();
+        Node e = null;
+        try {
+            e = parseExpr();
+        } catch (SyntaxException e1) {
+            System.out.println(e1.getMessage());
+            return null;
+        }
         return e;
     }
 
-    private Node parseExpr() {
+    private Node parseExpr() throws SyntaxException {
         Node e = parseTerm();
         Token t = tokenizer.getCurrentToken();
         while (t != null && (t.getText().equals("+") || t.getText().equals("-"))) {
@@ -113,7 +93,7 @@ public class ExpressionParser {
         return e;
     }
 
-    private Node parseTerm() {
+    private Node parseTerm() throws SyntaxException {
         Node e = parseFactor();
         Token t = currentToken();
 
@@ -127,11 +107,9 @@ public class ExpressionParser {
         return e;
     }
 
-    private Node parseFactor()
-    {
+    private Node parseFactor() throws SyntaxException {
         Token t = currentToken();
-        switch (t.getTokenValue())
-        {
+        switch (t.getTokenValue()) {
             case VARIABLE:
                 return new VarNode(null, t);
             case CONST_INTEGER:
@@ -142,23 +120,14 @@ public class ExpressionParser {
                 Node e = parseExpr();
                 if (tokenizer.getCurrentToken() == null
                         || tokenizer.getCurrentToken().getTokenValue() != TokenValue.SEP_BRACKETS_RIGHT) {
-                    try {
-                        throw new LexicalException();
-                    } catch (LexicalException e1) {
-                        System.out.println("Error: non-closed bracket");
-                    }
+                    throw new SyntaxException("Error: non-closed bracket");
                 }
                 return e;
             default:
-                try {
-                    throw new LexicalException();
-                } catch (LexicalException e1) {
-                    System.out.println("Error: expected identifier, constant or expression");
-                }
-                break;
+                throw new SyntaxException("Error: expected identifier, constant or expression");
         }
-        return null;
     }
+
     private Token currentToken() {
         if (tokenizer.Next())
             return tokenizer.getCurrentToken();
