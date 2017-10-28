@@ -41,10 +41,12 @@ public class Reader {
 
     public char getChar() {
         if (currentString.length() - Math.abs(yPos) <= 0) {
-            yPos = 0;
             if (!nextLine())
                 return '\0';
+            yPos = 0;
         }
+        //char c = !currentString.equals("") ? currentString.charAt(yPos++) : '\n';
+        //if (c == ' ')
         return !currentString.equals("") ? currentString.charAt(yPos++) : '\n';
     }
 
@@ -56,7 +58,7 @@ public class Reader {
         yPos--;
     }
 
-    public boolean endOfLine() { return currentString.length() - Math.abs(yPos) == 0; }
+    public boolean endOfLine() { return currentString.length() - Math.abs(yPos) <= 0; }
 
     public char previousCharacter() {
         return  currentString.charAt(yPos - 3);

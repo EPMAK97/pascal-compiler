@@ -1,4 +1,4 @@
 1  |  1 | KEYWORD     | KEYWORD_BEGIN               | Begin     | 
 5  |  4 | KEYWORD     | KEYWORD_END                 | end       | 
 5  |  7 | SEPARATOR   | SEP_DOT                     | .         | 
-END OF FILE
+Exception: the number can't end at the symbol of plus or minus

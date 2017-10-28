@@ -105,7 +105,7 @@ public class Tokenizer {
     }
 
     public Tokenizer(String filePath) {
-        reader         = new Reader(filePath);
+        reader = new Reader(filePath);
 //        File directory = new File("./src/Test/output.txt");
 //        try {
 //            bufferedWriter = new BufferedWriter(new FileWriter(directory));
@@ -122,6 +122,8 @@ public class Tokenizer {
     private boolean isNum(char c) { return ('0' <= c) && ('9' >= c); }
 
     public Token getCurrentToken() { return currentToken; }
+
+    public Token getNextToken() { Next(); return currentToken; }
 
     private void identifyType(char c) throws LexicalException {
         if (String.valueOf(c).matches("[a-zA-Z]|_|\'"))
@@ -141,7 +143,8 @@ public class Tokenizer {
         //tokenArrayList.clear();
         char c = reader.getChar();
         if (c == '\0') {
-            System.out.println("END OF FILE");
+            currentToken = new Token(new Pair(TokenType.END_OF_FILE, TokenValue.KEYWORD_EOF),
+                    reader.xPos, reader.yPos, "\0");
             return false;
         }
         try {
@@ -157,8 +160,7 @@ public class Tokenizer {
     }
 
     public void print() {
-        if (currentToken != null)
-            System.out.println(currentToken);
+        System.out.println(currentToken);
     }
 
     private void passToken(Pair pair, int x, int y, String text,String value) {
@@ -363,7 +365,7 @@ public class Tokenizer {
                     passToken(new Pair(TokenType.OPERATOR, TokenValue.OP_NOT_EQUAL),
                             reader.xPos, reader.yPos - 1, "<>");
                 else if (nextChar == '=')
-                    passToken(new Pair(TokenType.OPERATOR, TokenValue.KEYWORD_LESS_OR_EQUAL),
+                    passToken(new Pair(TokenType.OPERATOR, TokenValue.OP_LESS_OR_EQUAL),
                             reader.xPos, reader.yPos - 1, "<=");
                 else {
                     passToken(operators.get(c + ""), reader.xPos, reader.yPos - 1, c + "");
@@ -373,7 +375,7 @@ public class Tokenizer {
                 break;
             case '>' :
                 if (nextChar == '=')
-                    passToken(new Pair(TokenType.OPERATOR, TokenValue.KEYWORD_GREATER_OR_EQUAL),
+                    passToken(new Pair(TokenType.OPERATOR, TokenValue.OP_GREATER_OR_EQUAL),
                             reader.xPos, reader.yPos - 1, ">=");
                 else {
                     passToken(operators.get(c + ""), reader.xPos, reader.yPos - 1, c + "");

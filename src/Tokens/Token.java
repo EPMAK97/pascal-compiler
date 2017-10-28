@@ -1,8 +1,5 @@
 package Tokens;
 
-import Tokens.Types.Pair;
-import Tokens.Types.TokenValue;
-
 public class Token {
     private Pair pair = null;
     private String posX = null;
@@ -31,10 +28,13 @@ public class Token {
 
     public String getText() {return text == null ? "" : text; }
 
-    public TokenValue getTokenValue() {
-        return pair.getTokenValue();
-    }
+    public TokenValue getTokenValue() { return pair.getTokenValue(); }
 
+    public String getType() {return pair.getTokenType().toString(); }
+
+    public String getPosX() { return posX; }
+
+    public String getPosY() { return posY; }
 
     public String genSpace(int count) {
         StringBuilder builder = new StringBuilder();
