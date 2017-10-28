@@ -5,6 +5,7 @@ import Tokens.TokenValue;
 import Tokens.Tokenizer;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 
 public class ExpressionParser {
 
@@ -15,7 +16,7 @@ public class ExpressionParser {
         ArrayList<Node> children;
         Token token;
 
-        public Node(ArrayList<Node> children, Token token) {
+        private Node(ArrayList<Node> children, Token token) {
             this.children = children;
             this.token = token;
         }
@@ -43,38 +44,38 @@ public class ExpressionParser {
 
 
     public class VarNode extends Node {
-        public VarNode(ArrayList<Node> childs, Token token) {
-            super(childs, token);
+        public VarNode(Token token) {
+            super(null, token);
         }
     }
 
     public class ConstNode extends Node {
-        public ConstNode(ArrayList<Node> childs, Token token) {
-            super(childs, token);
+        public ConstNode(Token token) {
+            super(null, token);
         }
     }
 
     public class BinOpNode extends Node {
-        public BinOpNode(ArrayList<Node> childs, Token token) {
-            super(childs, token);
+        public BinOpNode(ArrayList<Node> children, Token token) {
+            super(children, token);
         }
     }
 
     public class LogicOperation extends Node {
-        public LogicOperation(ArrayList<Node> childs, Token token) {
-            super(childs, token);
+        public LogicOperation(ArrayList<Node> children, Token token) {
+            super(children, token);
         }
     }
 
     public class UnaryMinusNode extends Node {
-        public UnaryMinusNode(ArrayList<Node> childs, Token token) {
-            super(childs, token);
+        public UnaryMinusNode(ArrayList<Node> children, Token token) {
+            super(children, token);
         }
     }
 
     public class NotNode extends Node {
-        public NotNode(ArrayList<Node> childs, Token token) {
-            super(childs, token);
+        public NotNode(ArrayList<Node> children, Token token) {
+            super(children, token);
         }
     }
 
@@ -83,24 +84,15 @@ public class ExpressionParser {
         tokenizer = new Tokenizer(filePath);
     }
 
-    public Node parse() {
-        Node e = null;
-        try {
-            e = parseLogicalExpression();
-        } catch (SyntaxException e1) {
-            System.out.println(e1.getMessage());
-            return null;
-        }
-        return e;
+    public Node parse() throws SyntaxException {
+        return parseLogicalExpression();
     }
 
     private Node parseLogicalExpression() throws SyntaxException {
         Node e = parseExpr();
         Token t = tokenizer.getCurrentToken();
-        while (t != null && (isLogical(t.getText()))) {
-            ArrayList<Node> arrayList = new ArrayList<>();
-            arrayList.add(e);
-            arrayList.add(parseExpr());
+        while (t.getTokenValue() != TokenValue.KEYWORD_EOF && isLogical(t.getTokenValue())) {
+            ArrayList<Node> arrayList = new ArrayList<>(Arrays.asList(e, parseExpr()));
             e = new LogicOperation(arrayList, t);
             t = tokenizer.getCurrentToken();
         }
@@ -110,10 +102,8 @@ public class ExpressionParser {
     private Node parseExpr() throws SyntaxException {
         Node e = parseTerm();
         Token t = tokenizer.getCurrentToken();
-        while (t != null && (isExpr(t.getText()))) {
-            ArrayList<Node> arrayList = new ArrayList<>();
-            arrayList.add(e);
-            arrayList.add(parseTerm());
+        while (t.getTokenValue() != TokenValue.KEYWORD_EOF && isExpr(t.getTokenValue())) {
+            ArrayList<Node> arrayList = new ArrayList<>(Arrays.asList(e, parseTerm()));
             e = new BinOpNode(arrayList, t);
             t = tokenizer.getCurrentToken();
         }
@@ -122,63 +112,66 @@ public class ExpressionParser {
 
     private Node parseTerm() throws SyntaxException {
         Node e = parseFactor();
-        Token t = currentToken();
-        while (t != null && (isTerm(t.getText()))) {
-            ArrayList<Node> arrayList = new ArrayList<>();
-            arrayList.add(e);
-            arrayList.add(parseFactor());
+        Token t = tokenizer.getNextToken();
+        while (t.getTokenValue() != TokenValue.KEYWORD_EOF && (isTerm(t.getTokenValue()))) {
+            ArrayList<Node> arrayList = new ArrayList<>(Arrays.asList(e, parseFactor()));
             e = new BinOpNode(arrayList, t);
-            t = currentToken();
+            t = tokenizer.getNextToken();
         }
         return e;
     }
 
     private Node parseFactor() throws SyntaxException {
-        Token t = currentToken();
+        Token t = tokenizer.getNextToken();
         switch (t.getTokenValue()) {
             case OP_MINUS:
-                ArrayList<Node> list = new ArrayList<>();
-                list.add(parseFactor());
+                ArrayList<Node> list = new ArrayList<>(Arrays.asList(parseFactor()));
                 return new UnaryMinusNode(list, t);
             case KEYWORD_NOT:
-                ArrayList<Node> list1 = new ArrayList<>();
-                list1.add(parseFactor());
+                ArrayList<Node> list1 = new ArrayList<>(Arrays.asList(parseFactor()));
                 return new NotNode(list1, t);
             case VARIABLE:
-                return new VarNode(null, t);
+                return new VarNode(t);
             case CONST_INTEGER:
-                return new ConstNode(null, t);
+                return new ConstNode(t);
             case CONST_DOUBLE:
-                return new ConstNode(null, t);
+                return new ConstNode(t);
             case SEP_BRACKETS_LEFT:
                 Node e = parseExpr();
-                if (tokenizer.getCurrentToken() == null
-                        || tokenizer.getCurrentToken().getTokenValue() != TokenValue.SEP_BRACKETS_RIGHT) {
-                    throw new SyntaxException("Error: non-closed bracket");
+                if (tokenizer.getCurrentToken().getTokenValue() != TokenValue.SEP_BRACKETS_RIGHT) {
+                    throw new SyntaxException(String.format("Error in pos %s:%s non-closed bracket",
+                            tokenizer.getCurrentToken().getPosX(), tokenizer.getCurrentToken().getPosY()));
                 }
                 return e;
             default:
-                throw new SyntaxException("Error: expected identifier, constant or expression");
+                throw new SyntaxException(String.format("Error in pos %s:%s expected identifier, constant or expression ",
+                        tokenizer.getCurrentToken().getPosX(), tokenizer.getCurrentToken().getPosY()));
         }
     }
 
-    private Token currentToken() {
-        if (tokenizer.Next())
-            return tokenizer.getCurrentToken();
-        return null;
+    private boolean isLogical(TokenValue tv) {
+        return  tv == TokenValue.OP_GREATER ||
+                tv == TokenValue.OP_LESS    ||
+                tv == TokenValue.OP_GREATER_OR_EQUAL ||
+                tv == TokenValue.OP_LESS_OR_EQUAL    ||
+                tv == TokenValue.OP_EQUAL   ||
+                tv == TokenValue.OP_NOT_EQUAL;
     }
 
-    private boolean isLogical(String s) {
-        return s.equals(">") || s.equals("<") || s.equals(">=")
-                || s.equals("<=") || s.equals("=")  || s.equals("<>");
+    private boolean isExpr(TokenValue tv) {
+        return  tv == TokenValue.OP_PLUS    ||
+                tv == TokenValue.OP_MINUS   ||
+                tv == TokenValue.KEYWORD_OR ||
+                tv == TokenValue.KEYWORD_XOR;
     }
 
-    private boolean isExpr(String s) {
-        return s.equals("+") || s.equals("-") || s.equals("or") || s.equals("xor");
-    }
-
-    private boolean isTerm(String s) {
-        return s.equals("*") || s.equals("/") || s.equals("div") || s.equals("mod")
-                || s.equals("and") || s.equals("shl") || s.equals("shr");
+    private boolean isTerm(TokenValue tv) {
+        return  tv == TokenValue.OP_MULT        ||
+                tv == TokenValue.OP_DIVISION    ||
+                tv == TokenValue.KEYWORD_DIV    ||
+                tv == TokenValue.KEYWORD_MOD    ||
+                tv == TokenValue.KEYWORD_AND    ||
+                tv == TokenValue.KEYWORD_SHL    ||
+                tv == TokenValue.KEYWORD_SHR;
     }
 }
