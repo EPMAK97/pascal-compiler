@@ -1,4 +1,4 @@
-package Tokens.Types;
+package Tokens;
 
 public enum TokenValue {
     // Data type
@@ -52,8 +52,6 @@ public enum TokenValue {
     KEYWORD_LABEL,
     KEYWORD_PROGRAM,
     KEYWORD_ASSIGN,
-    KEYWORD_LESS_OR_EQUAL,
-    KEYWORD_GREATER_OR_EQUAL,
     KEYWORD_UNRESERVED,
     KEYWORD_WRITE,
     KEYWORD_WRITELN,
@@ -61,6 +59,7 @@ public enum TokenValue {
     OP_DOLLAR,
     KEYWORD_READ,
     KEYWORD_READLN,
+    KEYWORD_EOF,
     VARIABLE,
 
     // Separators
@@ -87,4 +86,6 @@ public enum TokenValue {
     OP_LESS,
     OP_GREATER,
     OP_EQUAL,
+    OP_LESS_OR_EQUAL,
+    OP_GREATER_OR_EQUAL,
 }
