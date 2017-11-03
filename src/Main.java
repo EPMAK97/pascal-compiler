@@ -21,7 +21,7 @@ public class Main {
 //            e.printStackTrace();
 //        }
         if (args.length == 0) {
-            System.out.println("Pascal fresh Compiler version 0.1 [2017/10/08] " +
+            System.out.println("Pascal fresh Compiler version 0.2 [2017/03/11] " +
                     "Copyright (c) 2017 by Donskoy Ilya");
             System.out.println("pascal_compiler.jar [options] <inputfile> " +
                     "use -l option to obtain a table of tokens" +
@@ -44,9 +44,21 @@ public class Main {
                     }
                     break;
                 case "-s":
+//                    try {
+//                        ExpressionParser parser = new ExpressionParser(args[1]);
+//                        ExpressionParser.Node node = parser.parse();
+//                        node.print();
+//                    } catch (SyntaxException e) {
+//                        //e.printStackTrace();
+//                        System.out.println(e.getMessage());
+//                    } finally {
+//                        System.out.close();
+//                    }
+                    break;
+                case "-t":
                     try {
-                        ExpressionParser parser = new ExpressionParser(args[1]);
-                        ExpressionParser.Node node = parser.parse();
+                        Parser parser1 = new Parser(args[1]);
+                        Parser.Node node = parser1.parse();
                         node.print();
                     } catch (SyntaxException e) {
                         //e.printStackTrace();
@@ -54,11 +66,6 @@ public class Main {
                     } finally {
                         System.out.close();
                     }
-                    break;
-                case "-t":
-                    Parser parser1 = new Parser(args[1]);
-                    Parser.Node parse = parser1.parse();
-                    parse.print();
                     break;
                 // some others args ....
             }
