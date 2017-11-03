@@ -30,6 +30,8 @@ public class Token {
 
     public TokenValue getTokenValue() { return pair.getTokenValue(); }
 
+    public TokenType getTokenType() { return pair.getTokenType(); }
+
     public String getType() {return pair.getTokenType().toString(); }
 
     public String getPosX() { return posX; }

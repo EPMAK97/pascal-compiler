@@ -134,7 +134,7 @@ public class Tokenizer {
             parseOperator(c);
         else if (isNum(c))
             parseNum(c);
-        else if (c == ' ')
+        else if (String.valueOf(c).matches("\\s"))
             identifyType(reader.getChar());
     }
 
@@ -440,6 +440,7 @@ public class Tokenizer {
                 }
                 builder.append(firstChar);
             }
+            reader.singleCharacterRollback();
             passToken(new Pair(TokenType.STRING, TokenValue.CONST_STRING), x, y, builder.toString());
             return;
         }
