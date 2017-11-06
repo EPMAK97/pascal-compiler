@@ -1,6 +1,9 @@
 package Tokens;
 
 import java.util.HashMap;
+import java.util.Map;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
 
 public class Tokenizer {
     private static Reader reader;
@@ -94,6 +97,12 @@ public class Tokenizer {
             put("readln",   new Pair(TokenType.KEYWORD, TokenValue.KEYWORD_READLN));
         }};
     }
+
+    public static HashMap<String, Pair> getOperators() { return operators; }
+
+    public static HashMap<String, Pair> getSeparators() { return separators; }
+
+    public static HashMap<String, Pair> getWords() { return words; }
 
     private enum State {
         FREE,

@@ -60,10 +60,6 @@ public class Reader {
 
     public boolean endOfLine() { return currentString.length() - Math.abs(yPos) <= 0; }
 
-    public char previousCharacter() {
-        return  currentString.charAt(yPos - 3);
-    }
-
     public void markCommentLineDoubleSlash() {
         yPos = currentString.length();
     }
