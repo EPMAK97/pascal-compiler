@@ -1,0 +1,14 @@
+procedure foo(a, b : integer; c : array of integer);
+type c = integer;
+
+procedure bar;
+const m = 0;
+Begin
+end;
+
+Begin
+   a := a - b;
+end;
+Begin
+
+end.

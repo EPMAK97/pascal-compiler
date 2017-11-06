@@ -1,0 +1,35 @@
+└── Main Program
+    ├── var
+    │   ├── integer
+    │   │   ├── a
+    │   │   └── b
+    │   ├── array
+    │   │   └── c
+    │   │       └── integer
+    │   │           ├── 1
+    │   │           └── 10
+    │   └── array
+    │       └── d
+    │           └── double
+    │               ├── 1
+    │               ├── 10
+    │               ├── 2
+    │               └── 20
+    ├── type
+    │   ├── integer
+    │   │   └── e
+    │   ├── e
+    │   │   └── f
+    │   └── record
+    │       └── rec
+    │           └── integer
+    │               └── inRecord
+    └── const
+        ├── g
+        │   └── 2
+        └── n
+            └── +
+                ├── 2
+                └── /
+                    ├── 2
+                    └── 5

@@ -1,0 +1,19 @@
+└── Main Program
+    └── procedure
+        ├── integer
+        │   ├── a
+        │   └── b
+        ├── array
+        │   └── integer
+        │       └── c
+        ├── type
+        │   └── integer
+        │       └── c
+        ├── procedure
+        │   └── const
+        │       └── m
+        │           └── 0
+        └── a
+            └── -
+                ├── a
+                └── b

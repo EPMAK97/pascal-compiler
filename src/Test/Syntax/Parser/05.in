@@ -1,0 +1,9 @@
+var res : double;
+procedure foo;
+var x : integer;
+Begin
+    x := 2 + 2;
+end;
+Begin
+    res := 1;
+end.

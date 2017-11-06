@@ -1,0 +1,14 @@
+└── Main Program
+    ├── var
+    │   └── double
+    │       └── res
+    ├── procedure
+    │   ├── var
+    │   │   └── integer
+    │   │       └── x
+    │   └── x
+    │       └── +
+    │           ├── 2
+    │           └── 2
+    └── res
+        └── 1

@@ -1,0 +1,24 @@
+ type
+    other = integer;
+    tor, bor = record
+        intNum    : integer;
+        doubleNum : double;
+        someNum   : other;
+        nestedRec : record
+           intNum : integer;
+           nestedNum : record
+              someNum : other;
+           end;
+        end;
+        c : integer;
+        arr : array [1..10, 2..4] of array [1..10] of double;
+        end;
+ Begin
+    for i := 2 + 2 - 4 / 5 to N do
+        s := s + i;
+
+    for i := 1 to N do begin
+        x := x + 2;
+        y := y - 1;
+    end;
+ end.

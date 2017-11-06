@@ -1,0 +1,11 @@
+procedure sum(a : integer);
+var mok : array [1..10] of integer;
+begin
+    while x >= 10 do begin
+        x := x + 1;
+    end;
+end;
+var m : double;
+Begin
+    x := x + 1;
+end.

@@ -1,0 +1,25 @@
+└── Main Program
+    ├── procedure
+    │   ├── integer
+    │   │   └── a
+    │   ├── var
+    │   │   └── array
+    │   │       └── mok
+    │   │           └── integer
+    │   │               ├── 1
+    │   │               └── 10
+    │   └── while
+    │       ├── >=
+    │       │   ├── x
+    │       │   └── 10
+    │       └── x
+    │           └── +
+    │               ├── x
+    │               └── 1
+    ├── var
+    │   └── double
+    │       └── m
+    └── x
+        └── +
+            ├── x
+            └── 1
