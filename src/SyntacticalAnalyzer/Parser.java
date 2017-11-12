@@ -5,6 +5,7 @@ import Tokens.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.StringJoiner;
 
 import static Tokens.TokenValue.*;
 
@@ -12,22 +13,25 @@ public class Parser {
     private Tokenizer tokenizer;
     private static HashMap<TokenValue, String> hashTokens;
 
-    private static void initHashTokens() {
-        HashMap<String, Pair> operators = Tokenizer.getOperators();
+    static {
+        hashTokens = new HashMap<>();
+        HashMap<String, Pair> operators  = Tokenizer.getOperators();
         HashMap<String, Pair> separators = Tokenizer.getSeparators();
-        HashMap<String, Pair> words = Tokenizer.getWords();
-
+        HashMap<String, Pair> words      = Tokenizer.getWords();
         for (String key : operators.keySet())
             hashTokens.put(operators.get(key).getTokenValue(), key);
         for (String key : separators.keySet())
             hashTokens.put(separators.get(key).getTokenValue(), key);
         for (String key : words.keySet())
             hashTokens.put(words.get(key).getTokenValue(), key);
+        // this is not in the hash
+        hashTokens.put(VARIABLE, "identifier");
+        hashTokens.put(SEP_DOUBLE_DOT, "..");
+        hashTokens.put(KEYWORD_ASSIGN, ":=");
     }
 
     public Parser(String filePath) throws SyntaxException {
         tokenizer = new Tokenizer(filePath);
-        initHashTokens();
         //Node node = parse();
     }
 
@@ -65,24 +69,16 @@ public class Parser {
     }
 
     public class VarNode extends Node {
-        public VarNode(Token token) {
-            super(null, token);
-        }
-        public VarNode(ArrayList<Node> children, Token token) {
-            super(children, token);
-        }
+        public VarNode(Token token) { super(null, token); }
+        public VarNode(ArrayList<Node> children, Token token) { super(children, token); }
     }
 
     public class ConstNode extends Node {
-        public ConstNode(Token token) {
-            super(null, token);
-        }
+        public ConstNode(Token token) { super(null, token); }
     }
 
     public class BinOpNode extends Node {
-        public BinOpNode(ArrayList<Node> children, Token token) {
-            super(children, token);
-        }
+        public BinOpNode(ArrayList<Node> children, Token token) { super(children, token); }
     }
 
     public class LogicOperation extends Node {
@@ -90,15 +86,11 @@ public class Parser {
     }
 
     public class UnaryMinusNode extends Node {
-        public UnaryMinusNode(ArrayList<Node> children, Token token) {
-            super(children, token);
-        }
+        public UnaryMinusNode(ArrayList<Node> children, Token token) { super(children, token); }
     }
 
     public class NotNode extends Node {
-        public NotNode(ArrayList<Node> children, Token token) {
-            super(children, token);
-        }
+        public NotNode(ArrayList<Node> children, Token token) { super(children, token); }
     }
 
     public class ConstantNode extends Node {
@@ -129,24 +121,40 @@ public class Parser {
         public LoopForNode(ArrayList<Node> children, Token token) { super(children, token); }
     }
 
+    public class IfNode extends Node {
+        public IfNode(ArrayList<Node> children, Token token) { super(children, token); }
+    }
+
+    public class ElseNode extends Node {
+        public ElseNode(ArrayList<Node> children, Token token) { super(children, token); }
+    }
+
+    public class ElseIfNode extends Node {
+        public ElseIfNode(ArrayList<Node> children, Token token) { super(children, token); }
+    }
+
+    public class FunctionNode extends Node {
+        public FunctionNode(ArrayList<Node> children, Token token) { super(children, token); }
+    }
+
     private Node parseLogicalExpression() throws SyntaxException {
         Node e = parseExpr();
-        Token t = tokenizer.getCurrentToken();
+        Token t = currentToken();
         while (t.getTokenValue() != KEYWORD_EOF && isLogical(t.getTokenValue())) {
-            ArrayList<Node> arrayList = new ArrayList<>(Arrays.asList(e, parseExpr()));
+            ArrayList<Node> arrayList = getList(e, parseExpr());
             e = new LogicOperation(arrayList, t);
-            t = tokenizer.getCurrentToken();
+            t = currentToken();
         }
         return e;
     }
 
     private Node parseExpr() throws SyntaxException {
         Node e = parseTerm();
-        Token t = tokenizer.getCurrentToken();
+        Token t = currentToken();
         while (t.getTokenValue() != KEYWORD_EOF && isExpr(t.getTokenValue())) {
-            ArrayList<Node> arrayList = new ArrayList<>(Arrays.asList(e, parseTerm()));
+            ArrayList<Node> arrayList = getList(e, parseTerm());
             e = new BinOpNode(arrayList, t);
-            t = tokenizer.getCurrentToken();
+            t = currentToken();
         }
         return e;
     }
@@ -155,7 +163,7 @@ public class Parser {
         Node e = parseFactor();
         Token t = tokenizer.getNextToken();
         while (t.getTokenValue() != KEYWORD_EOF && (isTerm(t.getTokenValue()))) {
-            ArrayList<Node> arrayList = new ArrayList<>(Arrays.asList(e, parseFactor()));
+            ArrayList<Node> arrayList = getList(e, parseFactor());
             e = new BinOpNode(arrayList, t);
             t = tokenizer.getNextToken();
         }
@@ -166,10 +174,10 @@ public class Parser {
         Token t = tokenizer.getNextToken();
         switch (t.getTokenValue()) {
             case OP_MINUS:
-                ArrayList<Node> list = new ArrayList<>(Arrays.asList(parseFactor()));
+                ArrayList<Node> list = getList(parseFactor());
                 return new UnaryMinusNode(list, t);
             case KEYWORD_NOT:
-                ArrayList<Node> list1 = new ArrayList<>(Arrays.asList(parseFactor()));
+                ArrayList<Node> list1 = getList(parseFactor());
                 return new NotNode(list1, t);
             case VARIABLE:
                 return new VarNode(t);
@@ -179,15 +187,11 @@ public class Parser {
                 return new ConstNode(t);
             case SEP_BRACKETS_LEFT:
                 Node e = parseExpr();
-                if (tokenizer.getCurrentToken().getTokenValue() != SEP_BRACKETS_RIGHT) {
-                    throw new SyntaxException(String.format("Error in pos %s:%s non-closed bracket",
-                            tokenizer.getCurrentToken().getPosX(), tokenizer.getCurrentToken().getPosY()));
-                }
+                require(SEP_BRACKETS_RIGHT);
                 return e;
             default:
-                //return null;
                 throw new SyntaxException(String.format("Error in pos %s:%s expected identifier, constant or expression ",
-                        tokenizer.getCurrentToken().getPosX(), tokenizer.getCurrentToken().getPosY()));
+                        currentToken().getPosX(), currentToken().getPosY()));
         }
     }
 
@@ -217,318 +221,194 @@ public class Parser {
                 tv == KEYWORD_SHR;
     }
 
-    private void require(TokenValue tokenValue, String string) throws SyntaxException {
-        if (currentValue() != tokenValue)
-            throw new SyntaxException(String.format("Error in pos %s:%s required %s but found %s",
-                    tokenizer.getCurrentToken().getPosX(), tokenizer.getCurrentToken().getPosY(),
-                    string, tokenizer.getCurrentToken().getText()));
+    private ArrayList<Node> getList(Node ... nodes) {
+        return new ArrayList<>(Arrays.asList(nodes));
     }
 
-    private void require(TokenValue tokenValue1, TokenValue tokenValue2, String string1, String string2) throws SyntaxException {
-        TokenValue currentTokenValue    = tokenizer.getCurrentToken().getTokenValue();
-        String currentTokenValueString  = tokenizer.getCurrentToken().getText();
-        String currentTokenPosY         = tokenizer.getCurrentToken().getPosY();
-        String currentTokenPosX         = tokenizer.getCurrentToken().getPosX();
-        if (currentTokenValue != tokenValue1 && currentTokenValue != tokenValue2)
-            throw new SyntaxException(String.format("Error in pos %s:%s required %s or %s but found %s",
-                    currentTokenPosX, currentTokenPosY, string1, string2 ,currentTokenValueString));
-    }
-
-    private void require(TokenValue tokenValue1, TokenValue tokenValue2, TokenValue tokenValue3,
-                         String string1, String string2, String string3) throws SyntaxException {
-        TokenValue currentTokenValue    = tokenizer.getCurrentToken().getTokenValue();
-        String currentTokenValueString  = tokenizer.getCurrentToken().getText();
-        String currentTokenPosY         = tokenizer.getCurrentToken().getPosY();
-        String currentTokenPosX         = tokenizer.getCurrentToken().getPosX();
-        if (currentTokenValue != tokenValue1 && currentTokenValue != tokenValue2 && currentTokenValue != tokenValue3)
-            throw new SyntaxException(String.format("Error in pos %s:%s required %s or %s or %s but found %s",
-                    currentTokenPosX, currentTokenPosY, string1, string2, string3, currentTokenValueString));
+    private void require(TokenValue ... tokenValues) throws SyntaxException {
+        StringJoiner joiner = new StringJoiner(" or ");
+        for (TokenValue value : tokenValues) {
+            if (currentValue() == value)
+                return;
+            joiner.add(hashTokens.get(value));
+        }
+        throw new SyntaxException(String.format("Error in pos %s:%s required %s but found %s",
+                currentToken().getPosX(), currentToken().getPosY(),
+                joiner.toString(), currentToken().getText()));
     }
 
     public Node parse() throws SyntaxException {
-
-        Node node = null;
         ArrayList<Node> nodes = new ArrayList<>();
-
-        //parseProgram();
-        tokenizer.Next();
+        goToNextToken();
+        if (currentValue() == KEYWORD_PROGRAM)
+            parseProgram();
         nodes.addAll(parseDeclarationPart());
-        require(KEYWORD_BEGIN, "begin");
-        ArrayList<Node> finalBlock = parseBlock(true);
-        tokenizer.Next();
-        require(SEP_DOT, ".");
+        require(KEYWORD_BEGIN);
+        ArrayList<Node> finalBlock = parseBlock();
+        goToNextToken();
+        require(SEP_DOT);
         if (finalBlock != null)
             nodes.addAll(finalBlock);
-        node = new MainNode(nodes, new Token(new Pair(TokenType.IDENTIFIER, VARIABLE), 1, 2, "Main Program"));
-        return node;
+        return new MainNode(nodes, new Token(new Pair(TokenType.IDENTIFIER, VARIABLE), 1, 2, "Main Program"));
     }
 
     private void parseProgram() throws SyntaxException {
-        //tokenizer.getNextToken();
-        require(KEYWORD_PROGRAM, "program");
+        goToNextToken();
+        require(VARIABLE);
+        goToNextToken();
+        require(SEP_SEMICOLON);
+        goToNextToken();
+    }
 
-        //tokenizer.getNextToken();
-        require(VARIABLE, "identifier");
-
-        //parseIdentifier();
-        //tokenizer.getNextToken();
-        require(SEP_SEMICOLON, ";");
+    private Node getNextDeclarationNode() throws SyntaxException {
+        Token currentToken = currentToken();
+        switch (currentValue()) {
+            case KEYWORD_CONST:
+                return new ConstantNode(parseConst(), currentToken);
+            case KEYWORD_VAR:
+                return new VarNode(parseVariables(), currentToken);
+            case KEYWORD_TYPE:
+                return new ConstantNode(parseTypes(), currentToken);
+            case KEYWORD_PROCEDURE:
+                return new ProcedureNode(parseSubroutine(false), currentToken);
+            case KEYWORD_FUNCTION:
+                return new FunctionNode(parseSubroutine(true), currentToken);
+            default:
+                require(KEYWORD_CONST, KEYWORD_VAR, KEYWORD_TYPE);
+                break;
+        }
+        return null; // Never))) But it's necessary
     }
 
     private ArrayList<Node> parseDeclarationPart() throws SyntaxException {
         ArrayList<Node> list = new ArrayList<>();
-        while (currentValue() != KEYWORD_BEGIN) {
-            switch (currentValue()) {
-                case KEYWORD_CONST:
-                    Token tokenConst = tokenizer.getCurrentToken();
-                    Node constantNode = new ConstantNode(parseConst(), tokenConst);
-                    list.add(constantNode);
-                    break;
-                case KEYWORD_VAR:
-                    Token tokenVar = tokenizer.getCurrentToken();
-                    list.add(new VarNode(parseVariables(false), tokenVar));
-                    break;
-                case KEYWORD_TYPE:
-                    Token tokenType = tokenizer.getCurrentToken();
-                    Node typeNode = new ConstantNode(parseTypes(), tokenType);
-                    list.add(typeNode);
-                    break;
-                case KEYWORD_PROCEDURE:
-                    Token tokenProcedure = tokenizer.getCurrentToken();
-                    ArrayList<Node> procedureNode = parseProcedure();
-                    ProcedureNode node;
-                    if (procedureNode != null)
-                        node = new ProcedureNode(procedureNode, tokenProcedure);
-                    else {
-                        node = new ProcedureNode(null, tokenProcedure);
-                        tokenizer.Next();
-                    }
-                    list.add(node);
-                    break;
-                default:
-                    require(KEYWORD_CONST, KEYWORD_VAR, KEYWORD_TYPE, "const", "var", "type");
-                    break;
-            }
-        }
+        while (currentValue() != KEYWORD_BEGIN) // end of declaration part
+            list.add(getNextDeclarationNode());
         return list;
     }
 
-    private ArrayList<Node> getIdentifierList() throws SyntaxException {
+    private ArrayList<Node> getIdentifierList(TokenValue mark) throws SyntaxException {
         ArrayList<Node> newVariables = new ArrayList<>();
-        while (currentValue() != OP_COLON) {
+        while (currentValue() != mark) {
             //Token newConstToken = tokenizer.getCurrentToken(); // current variable
-            newVariables.add(new VarNode(tokenizer.getCurrentToken()));
-            tokenizer.Next();
-            require(SEP_COMMA, OP_COLON, ",", ":");
-            if (currentValue() != OP_COLON) {
-                tokenizer.Next();
-                require(VARIABLE, "identifier");
+            newVariables.add(new VarNode(currentToken()));
+            goToNextToken();
+            require(SEP_COMMA, mark);
+            if (currentValue() != mark) {
+                goToNextToken();
+                require(VARIABLE);
             }
         }
         return newVariables;
     }
 
-    private ArrayList<Node> parseVariables(boolean isFormalParamets) throws SyntaxException {
+    private ArrayList<Node> parseVariables() throws SyntaxException {
         ArrayList<Node> nodes = new ArrayList<>();
-        tokenizer.Next();
-        require(VARIABLE, "variable");
+        goToNextToken();
+        require(VARIABLE);
         while (currentValue() == VARIABLE) {
-
-            ArrayList<Node> newVariables = getIdentifierList();
-
-            tokenizer.Next();
-            if (currentValue() == KEYWORD_ARRAY) {
-                Token arrayToken = tokenizer.getCurrentToken();
-
-                Node typeNode = parseArray();
-
-                for (Node variable : newVariables) {
-                    variable.setChildren(new ArrayList<>(Arrays.asList(typeNode)));
-                }
-
-                Node arrayNode = new ArrayNode(newVariables, arrayToken);
+            ArrayList<Node> newVariables = getIdentifierList(OP_COLON);
+            goToNextToken();
+            if (isArray()) {
+                nodes.add(parseArray(newVariables));
                 findSemicolon();
-                nodes.add(arrayNode);
                 continue;
             }
-
-            require(KEYWORD_INTEGER, KEYWORD_DOUBLE, "integer", "double");
-
+            require(KEYWORD_INTEGER, KEYWORD_DOUBLE);
             Node varNode = (currentValue() == KEYWORD_INTEGER) ?
-                    new VarIntegerNode(newVariables, tokenizer.getCurrentToken()) :
-                    new VarDoubleNode(newVariables, tokenizer.getCurrentToken());
+                    new VarIntegerNode(newVariables, currentToken()) :
+                    new VarDoubleNode(newVariables, currentToken());
             nodes.add(varNode);
-
-            if (!isFormalParamets)
-                findSemicolon();
-            else
-                tokenizer.Next();
+            findSemicolon();
         }
         return nodes;
     }
 
     private ArrayList<Node> parseConst() throws SyntaxException {
         ArrayList<Node> nodes = new ArrayList<>();
-        tokenizer.Next();
-        require(VARIABLE, "variable");
+        goToNextToken();
+        require(VARIABLE);
         while (currentValue() == VARIABLE) {
-            Token newConstToken = tokenizer.getCurrentToken();
-            tokenizer.Next();
-            require(OP_EQUAL, "=");
-            Node exprNode = parseLogicalExpression();
-            ArrayList<Node> list = new ArrayList<>(Arrays.asList(exprNode));
+            Token newConstToken = currentToken();
+            goToNextToken();
+            require(OP_EQUAL);
+            ArrayList<Node> list = getList(parseLogicalExpression());
             nodes.add(new ConstantNode(list, newConstToken));
-            require(SEP_SEMICOLON, ";");
-            tokenizer.Next();
+            require(SEP_SEMICOLON);
+            goToNextToken();
         }
         return nodes;
     }
 
-    private boolean isSimpleType() {
-        return currentValue() == KEYWORD_INTEGER || currentValue() == KEYWORD_DOUBLE;
-    }
-
-    private boolean isType() {
-        return currentValue() == VARIABLE;
-    }
-
-    private boolean isArray() {
-        return currentValue() == KEYWORD_ARRAY;
-    }
-
-    private boolean isRecord() {
-        return currentValue() == KEYWORD_RECORD;
-    }
-
-    private void findSemicolon() throws SyntaxException {
-        tokenizer.Next();
-        require(SEP_SEMICOLON, ";");
-        tokenizer.Next();
-    }
-
     private ArrayList<Node> parseDimensional() throws SyntaxException {
         ArrayList<Node> nodes = new ArrayList<>();
-
         while (currentValue() != SEP_BRACKETS_SQUARE_RIGHT) {
             nodes.add(parseExpr());
-            require(SEP_DOUBLE_DOT, "..");
+            require(SEP_DOUBLE_DOT);
             nodes.add(parseExpr());
-            require(SEP_BRACKETS_SQUARE_RIGHT, SEP_COMMA, "]", ",");
+            require(SEP_BRACKETS_SQUARE_RIGHT, SEP_COMMA);
         }
         return nodes;
     }
 
     private ArrayList<Node> parseTypes() throws SyntaxException {
         ArrayList<Node> nodes = new ArrayList<>();
-        tokenizer.Next();
-        require(VARIABLE, "variable");
+        goToNextToken();
+        require(VARIABLE);
         while (currentValue() == VARIABLE) {
-
-            ArrayList<Node> newVariables = new ArrayList<>();
-            while (currentValue() != OP_EQUAL) {
-                //Token newConstToken = tokenizer.getCurrentToken(); // current variable
-                newVariables.add(new VarNode(tokenizer.getCurrentToken()));
-                tokenizer.Next();
-                require(SEP_COMMA, OP_EQUAL, ",", "=");
-                if (currentValue() != OP_EQUAL)
-                    tokenizer.Next();
-            }
-
-            tokenizer.Next();
+            ArrayList<Node> newVariables = getIdentifierList(OP_EQUAL);
+            goToNextToken();
             if (isSimpleType()) {
-                //ArrayList<Node> newTypes = new ArrayList<>(Arrays.asList(tokenizer.getCurrentToken()));
                 Node varNode = currentValue() == KEYWORD_INTEGER ?
-                        new VarIntegerNode(newVariables, tokenizer.getCurrentToken()) :
-                        new VarDoubleNode(newVariables, tokenizer.getCurrentToken());
+                        new VarIntegerNode(newVariables, currentToken()) :
+                        new VarDoubleNode(newVariables, currentToken());
                 nodes.add(varNode);
                 findSemicolon();
             }
-
             else if (isType()) {
-                require(VARIABLE, "identifier"); // TODO make types checking
-                nodes.add(new VarNode(newVariables, tokenizer.getCurrentToken()));
+                require(VARIABLE); // TODO make types checking
+                nodes.add(new VarNode(newVariables, currentToken()));
                 findSemicolon();
             }
-
             else if (isArray()) {
-                Token arrayToken = tokenizer.getCurrentToken();
 
-                Node typeNode = parseArray();
-
-                for (Node variable : newVariables) {
-                    variable.setChildren(new ArrayList<>(Arrays.asList(typeNode)));
-                }
-
-                Node arrayNode = new ArrayNode(newVariables, arrayToken);
+                nodes.add(parseArray(newVariables));
                 findSemicolon();
-                nodes.add(arrayNode);
             }
-
-            else if (isRecord()) {
+            else if (isRecord())
                 nodes.add(parseRecord(newVariables));
-            }
         }
         return nodes;
     }
 
     private Node parseRecord(ArrayList<Node> newVariables) throws SyntaxException {
-        Token recordToken = tokenizer.getCurrentToken();
+        Token recordToken = currentToken();
         ArrayList<Node> children = new ArrayList<>();
 
-        tokenizer.Next();
+        goToNextToken();
         while (currentValue() != KEYWORD_END) {
-            ArrayList<Node> identifiers = getIdentifierList();
-            tokenizer.Next();
-
-            // TODO may be we need to do foreach loop for all identifiers and then parse ......
+            ArrayList<Node> identifiers = getIdentifierList(OP_COLON);
+            goToNextToken();
             if (isArray()) {
-                Token arrayToken = tokenizer.getCurrentToken();
-                //Node typeNode = new ArrayNode(new ArrayList<Node>(Arrays.asList(parseArray())), arrayToken);
-                Node typeNode = parseArray();
-                for (Node identifier : identifiers) {
-                    identifier.setChildren(new ArrayList<>(Arrays.asList(typeNode)));
-                }
-
-                Node arrayNode = new ArrayNode(identifiers, arrayToken);
-                //findSemicolon();
-
-                children.add(arrayNode);
-                //Node arrayNode = new ArrayNode(newVariables, arrayToken);
-
+                children.add(parseArray(identifiers));
                 findSemicolon();
             }
-
             if (isSimpleType() || currentValue() == VARIABLE) {
                 Node simpleTypeNode = (currentValue() == KEYWORD_INTEGER) ?
-                        new VarIntegerNode(identifiers, tokenizer.getCurrentToken()) :
-                        new VarDoubleNode(identifiers, tokenizer.getCurrentToken());
-
-//                for (Node identifier : identifiers) {
-//                    identifier.setChildren(new ArrayList<>(Arrays.asList(simpleTypeNode)));
-//                }
-
+                        new VarIntegerNode(identifiers, currentToken()) :
+                        new VarDoubleNode(identifiers, currentToken());
                 children.add(simpleTypeNode);
-
-                //Node newRecordField = new RecordNode(identifiers, recordToken);
-                //children.add(newRecordField);
-                //children.add(new VarNode(new ArrayList<Node>(Arrays.asList(newRecordField))));
                 findSemicolon();
             }
-
-            if (isRecord()) {
+            if (isRecord())
                 children.add(parseRecord(identifiers));
-            }
         }
-
-        tokenizer.Next();
-        tokenizer.Next();
-
-        for (Node variable : newVariables) {
+        goToNextToken();
+        goToNextToken();
+        //System.out.println(newVariables);
+        for (Node variable : newVariables)
             variable.setChildren(children);
-        }
-
-        Node recordsNode = new ArrayNode(newVariables, recordToken);
-        return recordsNode;
+        return new VarNode(newVariables, recordToken);
     }
 
     private TokenValue currentValue() {
@@ -536,42 +416,43 @@ public class Parser {
     }
 
     private void requireBasicTypes() throws SyntaxException {
-        require(KEYWORD_INTEGER, KEYWORD_DOUBLE, KEYWORD_ARRAY,
-                "integer", "double", "array");
+        require(KEYWORD_INTEGER, KEYWORD_DOUBLE, KEYWORD_ARRAY);
     }
 
-    private Node parseArray() throws SyntaxException {
+    private Node parseArray(ArrayList<Node> newVariables) throws SyntaxException {
+        Token arrayToken = currentToken();
         ArrayList<Node> arrayDimensional = new ArrayList<>();
         requireBasicTypes();
         while (currentValue() == KEYWORD_ARRAY) {
-            tokenizer.Next();
-            require(SEP_BRACKETS_SQUARE_LEFT, "[");
+            goToNextToken();
+            require(SEP_BRACKETS_SQUARE_LEFT);
             arrayDimensional.addAll(parseDimensional());
-            tokenizer.Next();
-            require(KEYWORD_OF, "of");
-            tokenizer.Next();
+            goToNextToken();
+            require(KEYWORD_OF);
+            goToNextToken();
         }
-        return new VarNode(arrayDimensional, tokenizer.getCurrentToken());
+        Node typeNode = new VarNode(arrayDimensional, currentToken());
+        for (Node variable : newVariables)
+            variable.setChildren(getList(typeNode));
+        return new ArrayNode(newVariables, arrayToken);
     }
 
-    private ArrayList<Node> parseProcedure() throws SyntaxException {
-        tokenizer.Next();
-        require(VARIABLE, "identifier");
-        tokenizer.Next();
-
+    private ArrayList<Node> parseSubroutine(boolean isFunction) throws SyntaxException {
+        goToNextToken();
+        require(VARIABLE);
+        goToNextToken();
         ArrayList<Node> parameters = null;
         ArrayList<Node> localParameters = null;
         ArrayList<Node> block = null;
-        if (currentValue() == SEP_BRACKETS_LEFT) {
-            parameters = parseFormalParameters();
-        }
+        if (currentValue() == SEP_BRACKETS_LEFT || isFunction)
+            parameters = parseFormalParameters(isFunction);
         if (currentValue() != KEYWORD_BEGIN) {
-            require(SEP_SEMICOLON, ";");
-            tokenizer.Next();
+            require(SEP_SEMICOLON);
+            goToNextToken();
             localParameters = parseDeclarationPart();
         }
-        require(KEYWORD_BEGIN, "begin");
-        block = parseBlock(false);
+        require(KEYWORD_BEGIN);
+        block = parseBlock();
         findSemicolon();
         ArrayList<Node> procedureNodes = new ArrayList<>();
         if (parameters != null)
@@ -582,161 +463,224 @@ public class Parser {
         return procedureNodes;
     }
 
-    private ArrayList<Node> parseFormalParameters() throws SyntaxException {
-        //tokenizer.Next();
+    private ArrayList<Node> parseFormalParameters(boolean isFunction) throws SyntaxException {
         ArrayList<Node> parameters = new ArrayList<>();
-
-        tokenizer.Next();
-        while (currentValue() != SEP_BRACKETS_RIGHT) {
-
-            switch (currentValue()) {
-                case KEYWORD_VAR:
-                    //parameters.addAll(parseVariables(true));
-                    //System.out.println(currentValue());
-                    tokenizer.Next();
-                    parameters.addAll(getFormalParameters());
-                    tokenizer.Next();
-                    break;
-                case VARIABLE:
-                    // TODO make type checking
-                    parameters.addAll(getFormalParameters());
-                    tokenizer.Next();
-                    break;
-                default:
-                    require(SEP_SEMICOLON, SEP_BRACKETS_RIGHT, ";", ")");
-                    tokenizer.Next();
-                    //System.out.println(currentValue());
-                    break;
+        if (currentValue() == SEP_BRACKETS_LEFT) {
+            goToNextToken();
+            while (currentValue() != SEP_BRACKETS_RIGHT) {
+                switch (currentValue()) {
+                    case KEYWORD_VAR:
+                        goToNextToken();
+                        parameters.addAll(getFormalParameters());
+                        goToNextToken();
+                        break;
+                    case VARIABLE:
+                        parameters.addAll(getFormalParameters());
+                        goToNextToken();
+                        break;
+                    default:
+                        require(SEP_SEMICOLON, SEP_BRACKETS_RIGHT);
+                        goToNextToken();
+                        break;
+                }
             }
         }
-        tokenizer.Next();
-        require(SEP_SEMICOLON, ";");
+        if (isFunction) {
+            if (currentValue() == SEP_BRACKETS_RIGHT)
+                goToNextToken();
+            require(OP_COLON);
+            goToNextToken();
+            require(KEYWORD_INTEGER, KEYWORD_DOUBLE); // TODO change this when checking types
+            parameters.add(new VarNode(currentToken())); // Change...
+        }
+        goToNextToken();
+        require(SEP_SEMICOLON);
         return parameters;
     }
 
     private ArrayList<Node> getFormalParameters() throws SyntaxException {
         ArrayList<Node> parameters = new ArrayList<>();
-        ArrayList<Node> newVarVariables = getIdentifierList();
-        tokenizer.Next();
-        require(KEYWORD_INTEGER, KEYWORD_DOUBLE, KEYWORD_ARRAY ,"integer", "double", "array");
+        ArrayList<Node> newVarVariables = getIdentifierList(OP_COLON);
+        goToNextToken();
+        require(KEYWORD_INTEGER, KEYWORD_DOUBLE, KEYWORD_ARRAY);
         if (currentValue() == KEYWORD_ARRAY) {
-            Token arrayToken = tokenizer.getCurrentToken();
-            tokenizer.Next();
-            tokenizer.Next();
-            VarNode varNode = new VarNode(newVarVariables, tokenizer.getCurrentToken());
-            parameters.add(new ArrayNode(new ArrayList<>(Arrays.asList(varNode)), arrayToken));
+            Token arrayToken = currentToken();
+            goToNextToken();
+            goToNextToken();
+            VarNode varNode = new VarNode(newVarVariables, currentToken());
+            parameters.add(new ArrayNode(getList(varNode), arrayToken));
         }
         else
             parameters.add(currentValue() == KEYWORD_INTEGER ?
-                    new VarIntegerNode(newVarVariables, tokenizer.getCurrentToken()) :
-                    new VarDoubleNode(newVarVariables, tokenizer.getCurrentToken()));
+                    new VarIntegerNode(newVarVariables, currentToken()) :
+                    new VarDoubleNode(newVarVariables, currentToken()));
         return parameters;
     }
 
-    private ArrayList<Node> parseBlock(boolean isFinalBlock) throws SyntaxException {
+    private Node getLogicalCondition() throws SyntaxException {
+        goToNextToken();
+        require(VARIABLE);
+        Node leftCondition = new VarNode(currentToken());
+        goToNextToken();
+        if (!isLogical(currentValue()))
+            throw new SyntaxException(String.format("Error in pos %s:%s required %s but found %s",
+                    tokenizer.getCurrentToken().getPosX(), currentToken().getPosY(),
+                    "logical", currentToken().getText()));
+        Token logicToken = currentToken();
+        goToNextToken();
+        require(VARIABLE, CONST_INTEGER, CONST_DOUBLE);
+        Node rightCondition = new VarNode(currentToken());
+        return new LogicOperation(getList(leftCondition, rightCondition), logicToken);
+    }
+
+    private Node parseStatement() throws SyntaxException {
+        require(VARIABLE);
+        Token variableToken = currentToken();
+        goToNextToken();
+        require(KEYWORD_ASSIGN);
+        Node expression = parseLogicalExpression();
+        require(SEP_SEMICOLON);
+        return new VarNode(getList(expression), variableToken);
+    }
+
+    private Node parseIf() throws SyntaxException {
+        Token ifToken = currentToken();
+        ArrayList<Node> ifChildren = new ArrayList<>();
+        ifChildren.add(getLogicalCondition());
+        goToNextToken();
+        require(KEYWORD_THEN);
+        goToNextToken();
+        if (currentValue() == KEYWORD_BEGIN)
+            ifChildren.addAll(parseBlock());
+        else
+            ifChildren.add(parseStatement());
+        if (currentValue() == KEYWORD_END) {
+            goToNextToken();
+            if (currentValue() != KEYWORD_ELSE) {
+                require(SEP_SEMICOLON);
+                goToNextToken();
+            }
+        }
+        else
+            goToNextToken();
+        if (currentValue() == KEYWORD_ELSE) {
+            while (currentValue() == KEYWORD_ELSE) {
+                Token elseToken = currentToken();
+                ArrayList<Node> elseChildren = new ArrayList<>();
+                goToNextToken();
+                if (currentValue() == KEYWORD_BEGIN || currentValue() == KEYWORD_IF) {
+                    if (currentValue() == KEYWORD_IF) {
+                        Token elseIfToken = currentToken();
+                        ArrayList<Node> elseIfChildren = new ArrayList<>();
+                        elseIfChildren.add(getLogicalCondition());
+                        goToNextToken();
+                        require(KEYWORD_THEN);
+                        goToNextToken();
+                        if (currentValue() == KEYWORD_BEGIN)
+                            elseIfChildren.addAll(parseBlock());
+                        else
+                            elseIfChildren.add(parseStatement());
+                        ifChildren.add(new ElseIfNode(elseIfChildren, elseIfToken));
+                        goToNextToken();
+                        if (currentValue() != KEYWORD_ELSE)
+                            require(SEP_SEMICOLON);
+                        continue;
+                    } else
+                        elseChildren.addAll(parseBlock());
+                } else {
+                    elseChildren.add(parseStatement());
+                    ifChildren.add(new ElseNode(elseChildren, elseToken));
+                    break;
+                }
+                goToNextToken();
+            }
+            require(SEP_SEMICOLON);
+            goToNextToken();
+        }
+        return new IfNode(ifChildren, ifToken);
+    }
+
+    private void isLoopBlock(ArrayList<Node> loopChildren) throws SyntaxException {
+        if (currentValue() == KEYWORD_BEGIN) {
+            loopChildren.addAll(parseBlock());
+            goToNextToken();
+            require(SEP_SEMICOLON);
+        }
+        else
+            loopChildren.add(parseStatement());
+    }
+
+    private Node parseFor() throws SyntaxException {
+        ArrayList<Node> loopChildren = new ArrayList<>();
+        Token loopToken = currentToken();
+        goToNextToken();
+        require(VARIABLE);
+        Token loopCounterVariable = currentToken();
+        goToNextToken();
+        require(KEYWORD_ASSIGN);
+        Node from = parseExpr();
+        require(KEYWORD_TO);
+        Node to = parseExpr();
+        loopChildren.add(new VarNode(getList(from, to), loopCounterVariable));
+        require(KEYWORD_DO);
+        goToNextToken();
+        isLoopBlock(loopChildren);
+        return new LoopForNode(loopChildren, loopToken);
+    }
+
+    private Node parseWhile() throws SyntaxException {
+        ArrayList<Node> loopChildren = new ArrayList<>();
+        Token whileToken = currentToken();
+        loopChildren.add(getLogicalCondition());
+        goToNextToken();
+        require(KEYWORD_DO);
+        goToNextToken();
+        isLoopBlock(loopChildren);
+        return new LoopForNode(loopChildren, whileToken);
+    }
+
+    private ArrayList<Node> parseBlock() throws SyntaxException {
         ArrayList<Node> children = new ArrayList<>();
-        tokenizer.getNextToken();
+        goToNextToken();
         while (currentValue() != KEYWORD_END) {
             switch (currentValue()) {
                 case VARIABLE:
-                    Token variableToken = tokenizer.getCurrentToken();
-                    tokenizer.Next();
-                    require(KEYWORD_ASSIGN, ":=");
-                    Node expression = parseLogicalExpression();
-                    require(SEP_SEMICOLON, ";");
-                    children.add(new VarNode(new ArrayList<Node>(Arrays.asList(expression)), variableToken));
-                    //System.out.println(currentValue());
-                    //System.out.println("OK");
+                    children.add(parseStatement());
                     break;
                 case KEYWORD_FOR:
-                    ArrayList<Node> loopChildren = new ArrayList<>();
-                    Token loopToken = tokenizer.getCurrentToken();
-                    tokenizer.Next();
-                    require(VARIABLE, "identifier");
-                    Token loopCounterVariable = tokenizer.getCurrentToken();
-                    //Node loopCounterVariableNode = new VarNode(tokenizer.getCurrentToken());
-                    tokenizer.Next();
-                    require(KEYWORD_ASSIGN, ":=");
-                    Node from = parseExpr();
-                    require(KEYWORD_TO, "to");
-                    Node to = parseExpr();
-                    loopChildren.add(new VarNode(new ArrayList<>(Arrays.asList(from, to)), loopCounterVariable));
-                    require(KEYWORD_DO, "do");
-                    tokenizer.Next();
-                    if (currentValue() == KEYWORD_BEGIN)
-                        loopChildren.addAll(parseBlock(false));
-                    else {
-                        require(VARIABLE, "identifier");
-                        Token insideLoopVariableToken = tokenizer.getCurrentToken();
-                        tokenizer.Next();
-                        require(KEYWORD_ASSIGN, ":=");
-                        Node insideLoopExpression = parseLogicalExpression();
-                        loopChildren.add(new VarNode(new ArrayList<>(Arrays.asList(insideLoopExpression)), insideLoopVariableToken));
-                        require(SEP_SEMICOLON, ";");
-                        //tokenizer.Next();
-                        //System.out.println(tokenizer.getCurrentToken());
-                    }
-                    children.add(new LoopForNode(loopChildren, loopToken));
-                    if (currentValue() == KEYWORD_END)
-                        tokenizer.Next();
+                    children.add(parseFor());
                     break;
                 case KEYWORD_WHILE:
-                    ArrayList<Node> loopChildren1 = new ArrayList<>();
-                    Token whileToken = tokenizer.getCurrentToken();
-                    tokenizer.Next();
-                    require(VARIABLE, "identifier");
-                    Node leftCondition = new VarNode(tokenizer.getCurrentToken());
-                    tokenizer.Next();
-                    if (!isLogical(currentValue()))
-                        throw new SyntaxException(String.format("Error in pos %s:%s required %s but found %s",
-                                tokenizer.getCurrentToken().getPosX(), tokenizer.getCurrentToken().getPosY(),
-                                "logical", tokenizer.getCurrentToken().getText()));
-                    Token logicToken = tokenizer.getCurrentToken();
-                    tokenizer.Next();
-                    require(VARIABLE, CONST_INTEGER, CONST_DOUBLE, "identifier", "integer", "double");
-                    Node rightCondition = new VarNode(tokenizer.getCurrentToken());
-                    loopChildren1.add(new VarNode(new ArrayList<>(Arrays.asList(leftCondition, rightCondition)), logicToken));
-                    tokenizer.Next();
-                    require(KEYWORD_DO, "do");
-                    tokenizer.Next();
-                    if (currentValue() == KEYWORD_BEGIN)
-                        loopChildren1.addAll(parseBlock(false));
-                    else {
-                        require(VARIABLE, " identifier");
-                        Token insideLoopVariableToken = tokenizer.getCurrentToken();
-                        tokenizer.Next();
-                        require(KEYWORD_ASSIGN, ":=");
-                        Node insideLoopExpression = parseLogicalExpression();
-                        loopChildren1.add(new VarNode(new ArrayList<>(Arrays.asList(insideLoopExpression)), insideLoopVariableToken));
-                        require(SEP_SEMICOLON, ";");
-                    }
-                    children.add(new LoopForNode(loopChildren1, whileToken));
-                    if (currentValue() == KEYWORD_END)
-                        tokenizer.Next();
-                    //Node node1 = new LogicOperation(new ArrayList<>(Arrays.asList()), tokenizer.);
+                    children.add(parseWhile());
                     break;
-                case KEYWORD_PROCEDURE:
-                    if (isFinalBlock)
-                        throw new SyntaxException(String.format("Error in pos %s:%s illegal expression",
-                                tokenizer.getCurrentToken().getPosX(), tokenizer.getCurrentToken().getPosY()));
-                    Token tokenProcedure = tokenizer.getCurrentToken();
-                    ArrayList<Node> procedureNode = parseProcedure();
-                    ProcedureNode node;
-                    if (procedureNode != null)
-                        node = new ProcedureNode(procedureNode, tokenProcedure);
-                    else {
-                        node = new ProcedureNode(null, tokenProcedure);
-                        tokenizer.Next();
-                    }
-                    children.add(node);
+                case KEYWORD_IF:
+                    children.add(parseIf());
                     continue;
                 default:
-                    require(VARIABLE, "identifier");
+                    require(VARIABLE);
                     break;
             }
-            tokenizer.Next();
+            goToNextToken();
         }
         return children;
+    }
+
+    private void goToNextToken() { tokenizer.Next(); }
+
+    private Token currentToken() { return tokenizer.getCurrentToken(); }
+
+    private boolean isSimpleType() { return currentValue() == KEYWORD_INTEGER || currentValue() == KEYWORD_DOUBLE; }
+
+    private boolean isType() { return currentValue() == VARIABLE; }
+
+    private boolean isArray() { return currentValue() == KEYWORD_ARRAY; }
+
+    private boolean isRecord() { return currentValue() == KEYWORD_RECORD; }
+
+    private void findSemicolon() throws SyntaxException {
+        goToNextToken();
+        require(SEP_SEMICOLON);
+        goToNextToken();
     }
 
     public class SymTable {
