@@ -1,9 +1,6 @@
 package Tokens;
 
 import java.util.HashMap;
-import java.util.Map;
-import java.util.stream.Collector;
-import java.util.stream.Collectors;
 
 public class Tokenizer {
     private static Reader reader;
