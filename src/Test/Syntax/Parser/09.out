@@ -3,33 +3,7 @@
     │   ├── integer
     │   │   └── other
     │   └── record
-    │       ├── tor
-    │       │   ├── integer
-    │       │   │   └── intNum
-    │       │   ├── double
-    │       │   │   └── doubleNum
-    │       │   ├── other
-    │       │   │   └── someNum
-    │       │   ├── record
-    │       │   │   └── nestedRec
-    │       │   │       ├── integer
-    │       │   │       │   └── intNum
-    │       │   │       └── record
-    │       │   │           └── nestedNum
-    │       │   │               └── other
-    │       │   │                   └── someNum
-    │       │   ├── integer
-    │       │   │   └── c
-    │       │   └── array
-    │       │       └── arr
-    │       │           └── double
-    │       │               ├── 1
-    │       │               ├── 10
-    │       │               ├── 2
-    │       │               ├── 4
-    │       │               ├── 1
-    │       │               └── 10
-    │       └── bor
+    │       └── tor
     │           ├── integer
     │           │   └── intNum
     │           ├── double
@@ -40,21 +14,17 @@
     │           │   └── nestedRec
     │           │       ├── integer
     │           │       │   └── intNum
-    │           │       └── record
-    │           │           └── nestedNum
-    │           │               └── other
-    │           │                   └── someNum
-    │           ├── integer
-    │           │   └── c
-    │           └── array
-    │               └── arr
-    │                   └── double
-    │                       ├── 1
-    │                       ├── 10
-    │                       ├── 2
-    │                       ├── 4
-    │                       ├── 1
-    │                       └── 10
+    │           │       ├── record
+    │           │       │   └── nestedNum
+    │           │       │       └── other
+    │           │       │           └── someNum
+    │           │       └── array
+    │           │           └── arr
+    │           │               └── integer
+    │           │                   ├── 1
+    │           │                   └── 10
+    │           └── integer
+    │               └── c
     ├── for
     │   ├── i
     │   │   ├── -

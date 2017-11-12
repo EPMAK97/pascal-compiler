@@ -1,6 +1,6 @@
  type
     other = integer;
-    tor, bor = record
+    tor = record
         intNum    : integer;
         doubleNum : double;
         someNum   : other;
@@ -9,10 +9,10 @@
            nestedNum : record
               someNum : other;
            end;
+        arr : array[1..10] of integer;
         end;
         c : integer;
-        arr : array [1..10, 2..4] of array [1..10] of double;
-        end;
+    end;
  Begin
     for i := 2 + 2 - 4 / 5 to N do
         s := s + i;

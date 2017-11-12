@@ -1,0 +1,6 @@
+var x : integer;
+Begin
+    x := 1;
+    if x > 10 then
+        x := 24;
+end.

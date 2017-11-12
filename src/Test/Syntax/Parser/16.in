@@ -1,0 +1,6 @@
+function sum(a, b : integer; var c : array of integer) : double;
+Begin
+    result := a + b;
+end;
+Begin
+end.

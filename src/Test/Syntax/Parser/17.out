@@ -1,0 +1,19 @@
+└── Main Program
+    └── function
+        ├── integer
+        │   ├── a
+        │   └── b
+        ├── integer
+        ├── function
+        │   ├── integer
+        │   │   ├── a
+        │   │   └── b
+        │   ├── double
+        │   └── result
+        │       └── *
+        │           ├── a
+        │           └── b
+        └── result
+            └── +
+                ├── a
+                └── b
