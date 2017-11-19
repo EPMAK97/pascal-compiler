@@ -11,7 +11,7 @@ public class Parser {
     private Tokenizer tokenizer;
     private static HashMap<TokenValue, String> hashTokens;
     //private static SymTable symTable;
-    private static Map<String, javafx.util.Pair<TokenValue, Node>> symTable = new LinkedHashMap<>();
+    private static Map<String, javafx.util.Pair<String, ArrayList<Node>>> symTable = new LinkedHashMap<>();
 
     static {
         hashTokens = new HashMap<>();
@@ -287,11 +287,12 @@ public class Parser {
         return list;
     }
 
-    private void declareVariables(ArrayList<Node> newVariables, TokenValue value) {
+    private void declareVariables(ArrayList<Node> newVariables, String value) {
         for (Node node : newVariables) {
             if (!symTable.containsKey(node.token.getText())){
                 System.out.println(node.token.getText() + " " + value);
-                symTable.put(node.token.getText(), new javafx.util.Pair<>(value, null));
+                symTable.put(node.token.getText(), new javafx.util.Pair<>(value, node.children));
+                System.out.println("its value = " + symTable.get(node.token.getText()).getValue());
             } else
                 System.out.println("DOUBLE DECLARATION");
         }
@@ -327,7 +328,7 @@ public class Parser {
                 continue;
             }
             require(KEYWORD_INTEGER, KEYWORD_DOUBLE);
-            declareVariables(newVariables, currentValue());
+            declareVariables(newVariables, currentValue().toString());
             Node varNode = (currentValue() == KEYWORD_INTEGER) ?
                     new VarIntegerNode(newVariables, currentToken()) :
                     new VarDoubleNode(newVariables, currentToken());
@@ -350,6 +351,7 @@ public class Parser {
             require(SEP_SEMICOLON);
             goToNextToken();
         }
+        declareVariables(nodes, KEYWORD_CONST.toString());
         return nodes;
     }
 
@@ -369,13 +371,19 @@ public class Parser {
         goToNextToken();
         require(VARIABLE);
         while (currentValue() == VARIABLE) {
-            ArrayList<Node> newVariables = getIdentifierList(OP_EQUAL);
+            //ArrayList<Node> newVariables = getIdentifierList(OP_EQUAL);
+            ArrayList<Node> newVariables = null;
+            Token currentVariable = currentToken();
+            goToNextToken();
+            require(OP_EQUAL);
             goToNextToken();
             if (isSimpleType()) {
                 Node varNode = currentValue() == KEYWORD_INTEGER ?
-                        new VarIntegerNode(newVariables, currentToken()) :
-                        new VarDoubleNode(newVariables, currentToken());
+                        new VarIntegerNode(getList(new VarNode(currentToken())), currentVariable) :
+                        new VarDoubleNode(getList(new VarNode(currentToken())), currentVariable);
                 nodes.add(varNode);
+//                for (Node variable : newVariables)
+//                    variable.setChildren();
                 findSemicolon();
             }
             else if (isType()) {
@@ -391,6 +399,7 @@ public class Parser {
             else if (isRecord())
                 nodes.add(parseRecord(newVariables));
         }
+        declareVariables(nodes, KEYWORD_TYPE.toString());
         return nodes;
     }
 
