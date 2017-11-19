@@ -1,17 +1,17 @@
 package SyntacticalAnalyzer;
 
 import Tokens.*;
+import Tokens.Pair;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.StringJoiner;
+import java.util.*;
 
 import static Tokens.TokenValue.*;
 
 public class Parser {
     private Tokenizer tokenizer;
     private static HashMap<TokenValue, String> hashTokens;
+    //private static SymTable symTable;
+    private static Map<String, javafx.util.Pair<TokenValue, Node>> symTable = new LinkedHashMap<>();
 
     static {
         hashTokens = new HashMap<>();
@@ -287,10 +287,21 @@ public class Parser {
         return list;
     }
 
+    private void declareVariables(ArrayList<Node> newVariables, TokenValue value) {
+        for (Node node : newVariables) {
+            if (!symTable.containsKey(node.token.getText())){
+                System.out.println(node.token.getText() + " " + value);
+                symTable.put(node.token.getText(), new javafx.util.Pair<>(value, null));
+            } else
+                System.out.println("DOUBLE DECLARATION");
+        }
+    }
+
     private ArrayList<Node> getIdentifierList(TokenValue mark) throws SyntaxException {
         ArrayList<Node> newVariables = new ArrayList<>();
         while (currentValue() != mark) {
             //Token newConstToken = tokenizer.getCurrentToken(); // current variable
+            //declareVariable();
             newVariables.add(new VarNode(currentToken()));
             goToNextToken();
             require(SEP_COMMA, mark);
@@ -310,11 +321,13 @@ public class Parser {
             ArrayList<Node> newVariables = getIdentifierList(OP_COLON);
             goToNextToken();
             if (isArray()) {
-                nodes.add(parseArray(newVariables));
+                Node arrayNode = parseArray(newVariables);
+                nodes.add(arrayNode);
                 findSemicolon();
                 continue;
             }
             require(KEYWORD_INTEGER, KEYWORD_DOUBLE);
+            declareVariables(newVariables, currentValue());
             Node varNode = (currentValue() == KEYWORD_INTEGER) ?
                     new VarIntegerNode(newVariables, currentToken()) :
                     new VarDoubleNode(newVariables, currentToken());
@@ -681,9 +694,5 @@ public class Parser {
         goToNextToken();
         require(SEP_SEMICOLON);
         goToNextToken();
-    }
-
-    public class SymTable {
-        public HashMap<String, TokenValue> table;
     }
 }
