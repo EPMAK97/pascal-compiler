@@ -290,22 +290,21 @@ public class Parser {
         return list;
     }
 
-    private void declareVariables(ArrayList<Node> newVariables, TokenValue value) {
+    private void declareVariables(ArrayList<Node> newVariables, TokenValue value) throws SyntaxException {
         for (Node node : newVariables) {
             if (!symTable.containsKey(node.token.getText())){
-                System.out.println(node.token.getText() + " " + value);
+                //System.out.println(node.token.getText() + " " + value);
                 symTable.put(node.token.getText(), new javafx.util.Pair<>(value, node.children));
-                System.out.println("its value = " + symTable.get(node.token.getText()).getValue());
+                //System.out.println("its value = " + symTable.get(node.token.getText()).getValue());
             } else
-                System.out.println("DOUBLE DECLARATION");
+                throw new SyntaxException(String.format("Error in pos %s:%s duplicate identifier \"%s\"",
+                        node.getToken().getPosX(), node.getToken().getPosY(), node.getToken().getText()));
         }
     }
 
     private ArrayList<Node> getIdentifierList(TokenValue mark) throws SyntaxException {
         ArrayList<Node> newVariables = new ArrayList<>();
         while (currentValue() != mark) {
-            //Token newConstToken = tokenizer.getCurrentToken(); // current variable
-            //declareVariable();
             newVariables.add(new VarNode(currentToken()));
             goToNextToken();
             require(SEP_COMMA, mark);
@@ -332,7 +331,8 @@ public class Parser {
             }
             if (currentValue() == VARIABLE) {
                 checkAlias(currentToken().getText());
-                System.out.println(symTable.get(currentToken().getText()).getKey());
+                declareVariables(newVariables, currentValue());
+                //System.out.println(symTable.get(currentToken().getText()).getKey());
                 Node varNode = new VarNode(newVariables, currentToken());
                 nodes.add(varNode);
             }
@@ -679,8 +679,6 @@ public class Parser {
         if (!symTable.containsKey(value))
             throw new SyntaxException(String.format("Error in pos %s:%s identifier not found \"%s\"",
                     currentToken().getPosX(), currentToken().getPosY(), value));
-        else
-            System.out.println("OK");
     }
 
     private void checkLoopCounterVariable(String value) throws SyntaxException {
@@ -709,9 +707,16 @@ public class Parser {
 
     private boolean checkTypeMatch(String key, TokenValue ... values) throws SyntaxException {
         for (TokenValue value : values)
-            if (symTable.get(key).getKey().equals(value))
+            if (symTable.get(key).getKey() == value)
                 return true;
         return false;
+    }
+
+    private void checkStatementSymbol(String value) throws SyntaxException {
+        checkPresenceSymbol(value);
+        if (!checkTypeMatch(currentToken().getText(), KEYWORD_DOUBLE, KEYWORD_INTEGER))
+            throw new SyntaxException(String.format("Error in pos %s:%s current type not allowed here",
+                    currentToken().getPosX(), currentToken().getPosY()));
     }
 
     private void setValueToSymTable(String key, Node statementNode) {
@@ -724,7 +729,7 @@ public class Parser {
         while (currentValue() != KEYWORD_END) {
             switch (currentValue()) {
                 case VARIABLE:
-                    checkPresenceSymbol(currentToken().getText());
+                    checkStatementSymbol(currentToken().getText());
                     children.add(parseStatement());
                     break;
                 case KEYWORD_FOR:
