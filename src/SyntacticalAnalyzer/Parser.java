@@ -180,6 +180,7 @@ public class Parser {
                 ArrayList<Node> list1 = getList(parseFactor());
                 return new NotNode(list1, t);
             case VARIABLE:
+                checkType(currentToken().getText());
                 return new VarNode(t);
             case CONST_INTEGER:
                 return new ConstNode(t);
@@ -561,6 +562,7 @@ public class Parser {
         goToNextToken();
         require(KEYWORD_ASSIGN);
         Node expression = parseLogicalExpression();
+        setValueToSymTable(variableToken.getText(), expression);
         require(SEP_SEMICOLON);
         return new VarNode(getList(expression), variableToken);
     }
@@ -638,6 +640,8 @@ public class Parser {
         goToNextToken();
         require(VARIABLE);
         Token loopCounterVariable = currentToken();
+        checkType(loopCounterVariable.getText());
+        checkLoopCounterVariable(loopCounterVariable.getText());
         goToNextToken();
         require(KEYWORD_ASSIGN);
         Node from = parseExpr();
@@ -661,12 +665,31 @@ public class Parser {
         return new LoopForNode(loopChildren, whileToken);
     }
 
+    private void checkType(String value) throws SyntaxException {
+        if (!symTable.containsKey(value))
+            throw new SyntaxException(String.format("Error in pos %s:%s identifier not found \"%s\"",
+                    currentToken().getPosX(), currentToken().getPosY(), value));
+        else
+            System.out.println("OK");
+    }
+
+    private void checkLoopCounterVariable(String value) throws SyntaxException {
+        if (!symTable.get(value).getKey().equals("VARIABLE"))
+            throw new SyntaxException(String.format("Error in pos %s:%s illegal counter variable",
+                    currentToken().getPosX(), currentToken().getPosY()));
+    }
+
+    private void setValueToSymTable(String key, Node statementNode) {
+        symTable.computeIfPresent(key, (k, v) -> v = new javafx.util.Pair<>(v.getKey(), getList(statementNode)));
+    }
+
     private ArrayList<Node> parseBlock() throws SyntaxException {
         ArrayList<Node> children = new ArrayList<>();
         goToNextToken();
         while (currentValue() != KEYWORD_END) {
             switch (currentValue()) {
                 case VARIABLE:
+                    checkType(currentToken().getText());
                     children.add(parseStatement());
                     break;
                 case KEYWORD_FOR:
