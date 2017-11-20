@@ -11,7 +11,7 @@ public class Parser {
     private Tokenizer tokenizer;
     private static HashMap<TokenValue, String> hashTokens;
     //private static SymTable symTable;
-    private static Map<String, javafx.util.Pair<String, ArrayList<Node>>> symTable = new LinkedHashMap<>();
+    private static Map<String, javafx.util.Pair<TokenValue, ArrayList<Node>>> symTable = new LinkedHashMap<>();
 
     static {
         hashTokens = new HashMap<>();
@@ -66,6 +66,8 @@ public class Parser {
         }
 
         public void setChildren(ArrayList<Node> children) { this.children = children; }
+
+        public Token getToken() { return token; }
     }
 
     public class VarNode extends Node {
@@ -288,7 +290,7 @@ public class Parser {
         return list;
     }
 
-    private void declareVariables(ArrayList<Node> newVariables, String value) {
+    private void declareVariables(ArrayList<Node> newVariables, TokenValue value) {
         for (Node node : newVariables) {
             if (!symTable.containsKey(node.token.getText())){
                 System.out.println(node.token.getText() + " " + value);
@@ -328,12 +330,20 @@ public class Parser {
                 findSemicolon();
                 continue;
             }
-            require(KEYWORD_INTEGER, KEYWORD_DOUBLE);
-            declareVariables(newVariables, currentValue().toString());
-            Node varNode = (currentValue() == KEYWORD_INTEGER) ?
-                    new VarIntegerNode(newVariables, currentToken()) :
-                    new VarDoubleNode(newVariables, currentToken());
-            nodes.add(varNode);
+            if (currentValue() == VARIABLE) {
+                checkAlias(currentToken().getText());
+                System.out.println(symTable.get(currentToken().getText()).getKey());
+                Node varNode = new VarNode(newVariables, currentToken());
+                nodes.add(varNode);
+            }
+            else {
+                require(KEYWORD_INTEGER, KEYWORD_DOUBLE);
+                declareVariables(newVariables, currentValue());
+                Node varNode = (currentValue() == KEYWORD_INTEGER) ?
+                        new VarIntegerNode(newVariables, currentToken()) :
+                        new VarDoubleNode(newVariables, currentToken());
+                nodes.add(varNode);
+            }
             findSemicolon();
         }
         return nodes;
@@ -352,7 +362,7 @@ public class Parser {
             require(SEP_SEMICOLON);
             goToNextToken();
         }
-        declareVariables(nodes, KEYWORD_CONST.toString());
+        declareVariables(nodes, KEYWORD_CONST);
         return nodes;
     }
 
@@ -400,7 +410,7 @@ public class Parser {
             else if (isRecord())
                 nodes.add(parseRecord(newVariables));
         }
-        declareVariables(nodes, KEYWORD_TYPE.toString());
+        declareVariables(nodes, KEYWORD_TYPE);
         return nodes;
     }
 
@@ -675,20 +685,30 @@ public class Parser {
 
     private void checkLoopCounterVariable(String value) throws SyntaxException {
         checkPresenceSymbol(value);
-        if (!checkTypeMatch(value, VARIABLE.toString()))
+        if (!checkTypeMatch(value, VARIABLE))
             throw new SyntaxException(String.format("Error in pos %s:%s illegal counter variable",
                     currentToken().getPosX(), currentToken().getPosY()));
     }
 
     private void checkIfConditionVariable(String value) throws SyntaxException {
         checkPresenceSymbol(value);
-        if (!checkTypeMatch(value, KEYWORD_INTEGER.toString(), KEYWORD_DOUBLE.toString(), KEYWORD_CONST.toString()))
+        if (!checkTypeMatch(value, KEYWORD_INTEGER, KEYWORD_DOUBLE, KEYWORD_CONST))
             throw new SyntaxException(String.format("Error in pos %s:%s current identifier not allowed here",
                     currentToken().getPosX(), currentToken().getPosY()));
     }
 
-    private boolean checkTypeMatch(String key, String ... values) throws SyntaxException {
-        for (String value : values)
+    private void checkAlias(String value) throws SyntaxException {
+        checkPresenceSymbol(value);
+        TokenValue tokenValue = symTable.get(value).getValue().get(0).getToken().getTokenValue();
+        if (tokenValue != KEYWORD_INTEGER &&
+                tokenValue != KEYWORD_DOUBLE &&
+                tokenValue != KEYWORD_CONST)
+            throw new SyntaxException(String.format("Error in pos %s:%s current type not allowed here",
+                    currentToken().getPosX(), currentToken().getPosY()));
+    }
+
+    private boolean checkTypeMatch(String key, TokenValue ... values) throws SyntaxException {
+        for (TokenValue value : values)
             if (symTable.get(key).getKey().equals(value))
                 return true;
         return false;
