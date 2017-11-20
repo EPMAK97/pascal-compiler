@@ -180,7 +180,7 @@ public class Parser {
                 ArrayList<Node> list1 = getList(parseFactor());
                 return new NotNode(list1, t);
             case VARIABLE:
-                checkType(currentToken().getText());
+                checkPresenceSymbol(currentToken().getText());
                 return new VarNode(t);
             case CONST_INTEGER:
                 return new ConstNode(t);
@@ -543,6 +543,7 @@ public class Parser {
     private Node getLogicalCondition() throws SyntaxException {
         goToNextToken();
         require(VARIABLE);
+        checkIfConditionVariable(currentToken().getText());
         Node leftCondition = new VarNode(currentToken());
         goToNextToken();
         if (!isLogical(currentValue()))
@@ -640,7 +641,6 @@ public class Parser {
         goToNextToken();
         require(VARIABLE);
         Token loopCounterVariable = currentToken();
-        checkType(loopCounterVariable.getText());
         checkLoopCounterVariable(loopCounterVariable.getText());
         goToNextToken();
         require(KEYWORD_ASSIGN);
@@ -665,7 +665,7 @@ public class Parser {
         return new LoopForNode(loopChildren, whileToken);
     }
 
-    private void checkType(String value) throws SyntaxException {
+    private void checkPresenceSymbol(String value) throws SyntaxException {
         if (!symTable.containsKey(value))
             throw new SyntaxException(String.format("Error in pos %s:%s identifier not found \"%s\"",
                     currentToken().getPosX(), currentToken().getPosY(), value));
@@ -674,9 +674,24 @@ public class Parser {
     }
 
     private void checkLoopCounterVariable(String value) throws SyntaxException {
-        if (!symTable.get(value).getKey().equals("VARIABLE"))
+        checkPresenceSymbol(value);
+        if (!checkTypeMatch(value, VARIABLE.toString()))
             throw new SyntaxException(String.format("Error in pos %s:%s illegal counter variable",
                     currentToken().getPosX(), currentToken().getPosY()));
+    }
+
+    private void checkIfConditionVariable(String value) throws SyntaxException {
+        checkPresenceSymbol(value);
+        if (!checkTypeMatch(value, KEYWORD_INTEGER.toString(), KEYWORD_DOUBLE.toString(), KEYWORD_CONST.toString()))
+            throw new SyntaxException(String.format("Error in pos %s:%s current identifier not allowed here",
+                    currentToken().getPosX(), currentToken().getPosY()));
+    }
+
+    private boolean checkTypeMatch(String key, String ... values) throws SyntaxException {
+        for (String value : values)
+            if (symTable.get(key).getKey().equals(value))
+                return true;
+        return false;
     }
 
     private void setValueToSymTable(String key, Node statementNode) {
@@ -689,7 +704,7 @@ public class Parser {
         while (currentValue() != KEYWORD_END) {
             switch (currentValue()) {
                 case VARIABLE:
-                    checkType(currentToken().getText());
+                    checkPresenceSymbol(currentToken().getText());
                     children.add(parseStatement());
                     break;
                 case KEYWORD_FOR:
