@@ -3,6 +3,7 @@ import SyntacticalAnalyzer.Parser;
 import SyntacticalAnalyzer.SyntaxException;
 import Tokens.Tokenizer;
 
+import javax.script.ScriptException;
 import java.io.BufferedOutputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -16,7 +17,7 @@ public class Main {
 //            System.setOut(new PrintStream(
 //                    new BufferedOutputStream(
 //                            new FileOutputStream(
-//                                    "/Users/ilyadonskoj/IdeaProjects/pascal_compiler/src/Test/Tokinizer/output.txt"))));
+//                                    "/Users/ilyadonskoj/IdeaProjects/pascal_compiler/src/Test/Syntax/Parser/output.txt"))));
 //        } catch (FileNotFoundException e) {
 //            e.printStackTrace();
 //        }
@@ -54,21 +55,24 @@ public class Main {
 //                    } finally {
 //                        System.out.close();
 //                    }
-                    break;
+//                    break;
                 case "-t":
                     try {
                         Parser parser1 = new Parser(args[1]);
-                        Parser.Node node = parser1.parse();
-                        node.print();
+                        Parser.Type type = parser1.parse();
+                        System.out.println(type);
+                        //node.print();
                     } catch (SyntaxException e) {
                         //e.printStackTrace();
                         System.out.println(e.getMessage());
+                    } catch (ScriptException e) {
+                            //e.printStackTrace();
+                            System.out.println(e.getMessage());
                     } finally {
                         System.out.close();
                     }
                     break;
                 // some others args ....
             }
-
     }
 }

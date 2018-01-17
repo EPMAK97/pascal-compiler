@@ -1,9 +1,13 @@
 package SyntacticalAnalyzer;
 
-import Tokens.*;
-import Tokens.Pair;
-import javafx.util.*;
+import Tokens.Token;
+import Tokens.TokenType;
+import Tokens.TokenValue;
+import Tokens.Tokenizer;
 
+import javax.script.ScriptEngine;
+import javax.script.ScriptEngineManager;
+import javax.script.ScriptException;
 import java.util.*;
 
 import static Tokens.TokenValue.*;
@@ -11,14 +15,13 @@ import static Tokens.TokenValue.*;
 public class Parser {
     private Tokenizer tokenizer;
     private static HashMap<TokenValue, String> hashTokens;
-    private static ArrayList<Map<String, javafx.util.Pair<TokenValue, ArrayList<Node>>>> symTables;
-    private static int currentSymTableIndex = 0;
+    private Stack<SymTable> tables;
 
     static {
         hashTokens = new HashMap<>();
-        HashMap<String, Pair> operators  = Tokenizer.getOperators();
-        HashMap<String, Pair> separators = Tokenizer.getSeparators();
-        HashMap<String, Pair> words      = Tokenizer.getWords();
+        HashMap<String, Tokens.Pair> operators  = Tokenizer.getOperators();
+        HashMap<String, Tokens.Pair> separators = Tokenizer.getSeparators();
+        HashMap<String, Tokens.Pair> words      = Tokenizer.getWords();
         for (String key : operators.keySet())
             hashTokens.put(operators.get(key).getTokenValue(), key);
         for (String key : separators.keySet())
@@ -27,11 +30,9 @@ public class Parser {
             hashTokens.put(words.get(key).getTokenValue(), key);
         // this is not in the hash
         hashTokens.put(VARIABLE, "identifier");
+        hashTokens.put(CONST_STRING, "const string");
         hashTokens.put(SEP_DOUBLE_DOT, "..");
         hashTokens.put(KEYWORD_ASSIGN, ":=");
-
-        symTables = new ArrayList<>();
-        currentSymTableIndex = 0;
     }
 
     public Parser(String filePath) throws SyntaxException {
@@ -39,160 +40,56 @@ public class Parser {
         //Node node = parse();
     }
 
-    public class Node {
 
-        ArrayList<Node> children;
-        Token token;
-        private TokenValue resultType;
-
-        private Node(ArrayList<Node> children, Token token) {
-            this.children = children;
-            this.token = token;
-        }
-
-        @Override
-        public String toString() {
-            return token.getText();
-        }
-
-        public void print() { print("", true); }
-
-        private void print(String prefix, boolean isTail) {
-            System.out.println(prefix + (isTail ? "└── " : "├── ") + token.getText());
-            if (children != null) {
-                for (int i = 0; i < children.size() - 1; i++) {
-                    children.get(i).print(prefix + (isTail ? "    " : "│   "), false);
-                }
-                if (children.size() > 0) {
-                    children.get(children.size() - 1)
-                            .print(prefix + (isTail ? "    " : "│   "), true);
-                }
-            }
-        }
-
-        public void setChildren(ArrayList<Node> children) { this.children = children; }
-
-        public Token getToken() { return token; }
-
-        public TokenValue getResultType() { return resultType; }
-
-        public void setResultType(TokenValue resultType) { this.resultType = resultType; }
-    }
-
-    public class VarNode extends Node {
-        public VarNode(Token token) { super(null, token); }
-        public VarNode(ArrayList<Node> children, Token token) { super(children, token); }
-    }
-
-    public class ConstNode extends Node {
-        public ConstNode(Token token) { super(null, token); }
-    }
-
-    public class BinOpNode extends Node {
-        public BinOpNode(ArrayList<Node> children, Token token) { super(children, token); }
-    }
-
-    public class LogicOperation extends Node {
-        public LogicOperation(ArrayList<Node> children, Token token) { super(children, token); }
-    }
-
-    public class UnaryMinusNode extends Node {
-        public UnaryMinusNode(ArrayList<Node> children, Token token) { super(children, token); }
-    }
-
-    public class NotNode extends Node {
-        public NotNode(ArrayList<Node> children, Token token) { super(children, token); }
-    }
-
-    public class ConstantNode extends Node {
-        public ConstantNode(ArrayList<Node> children, Token token) { super(children, token); }
-    }
-
-    public class MainNode extends Node {
-        public MainNode(ArrayList<Node> children, Token token) { super(children, token); }
-    }
-
-    public class VarIntegerNode extends Node {
-        public VarIntegerNode(ArrayList<Node> children, Token token) { super(children, token); }
-    }
-
-    public class VarDoubleNode extends Node {
-        public VarDoubleNode(ArrayList<Node> children, Token token) { super(children, token); }
-    }
-
-    public class ArrayNode extends Node {
-        public ArrayNode(ArrayList<Node> children, Token token) { super(children, token); }
-    }
-
-    public class ProcedureNode extends Node {
-        public ProcedureNode(ArrayList<Node> children, Token token) { super(children, token); }
-    }
-
-    public class LoopForNode extends Node {
-        public LoopForNode(ArrayList<Node> children, Token token) { super(children, token); }
-    }
-
-    public class IfNode extends Node {
-        public IfNode(ArrayList<Node> children, Token token) { super(children, token); }
-    }
-
-    public class ElseNode extends Node {
-        public ElseNode(ArrayList<Node> children, Token token) { super(children, token); }
-    }
-
-    public class ElseIfNode extends Node {
-        public ElseIfNode(ArrayList<Node> children, Token token) { super(children, token); }
-    }
-
-    public class FunctionNode extends Node {
-        public FunctionNode(ArrayList<Node> children, Token token) { super(children, token); }
-    }
-
-    private Node parseLogicalExpression() throws SyntaxException {
+    private Node parseLogicalExpression() throws SyntaxException, ScriptException  {
         Node e = parseExpr();
         Token t = currentToken();
         while (t.getTokenValue() != KEYWORD_EOF && isLogical(t.getTokenValue())) {
-            ArrayList<Node> arrayList = getList(e, parseExpr());
-            e = new LogicOperation(arrayList, t);
+            goToNextToken();
+            Node parseExprNode = parseExpr();
+            e = calculateConstants(e, parseExprNode, t);
             t = currentToken();
         }
         return e;
     }
 
-    private Node parseExpr() throws SyntaxException {
+    // a + (b * 2)
+
+    private Node parseExpr() throws SyntaxException, ScriptException {
         Node e = parseTerm();
-        Token t = currentToken();
+        //Token t = tokenizer.getNextToken();
+        Token t = currentToken(); // +
         while (t.getTokenValue() != KEYWORD_EOF && isExpr(t.getTokenValue())) {
+            goToNextToken();
             Node parseTermNode = parseTerm();
-            //System.out.println(parseTermNode.getResultType() + " ASDFASDFASDF LOL LOL LOL");
-            TokenValue value = compareRelevanceOfTypes(e, parseTermNode.getToken(), t.getTokenValue());
-            //System.out.println("ParseExprValue " + value);
-            ArrayList<Node> arrayList = getList(e, parseTermNode);
-            e = new BinOpNode(arrayList, t);
-            //System.out.println(e.getToken() + " LOLL ");
-            e.setResultType(value);
+            //TokenValue value = compareRelevanceOfTypes(e, parseTermNode.getToken(), t.getTokenValue());
+            e = calculateConstants(e, parseTermNode, t);
+            //e.setResultType(value);
             t = currentToken();
         }
         return e;
     }
 
-    private Node parseTerm() throws SyntaxException {
+    private Node parseTerm() throws SyntaxException, ScriptException {
         Node e = parseFactor();
+        //e = calculateConstants();
+        //ConstNode node = (ConstNode)e;
+        //System.out.println(node.result);
         Token t = tokenizer.getNextToken();
         while (t.getTokenValue() != KEYWORD_EOF && (isTerm(t.getTokenValue()))) {
+            goToNextToken();
             Node parseFactorNode = parseFactor();
-            TokenValue value = compareRelevanceOfTypes(e, parseFactorNode.getToken(), t.getTokenValue());
+            //TokenValue value = compareRelevanceOfTypes(e, parseFactorNode.getToken(), t.getTokenValue());
             //System.out.println("ParseTermValue " + value);
-            ArrayList<Node> arrayList = getList(e, parseFactorNode);
-            e = new BinOpNode(arrayList, t);
-            e.setResultType(value);
+            e = calculateConstants(e, parseFactorNode, t);
+            //e.setResultType(value);
             t = tokenizer.getNextToken();
         }
         return e;
     }
-
-    private Node parseFactor() throws SyntaxException {
-        Token t = tokenizer.getNextToken();
+    // a-;
+    private Node parseFactor() throws SyntaxException, ScriptException {
+        Token t = currentToken();
         switch (t.getTokenValue()) {
             case OP_MINUS:
                 ArrayList<Node> list = getList(parseFactor());
@@ -201,22 +98,34 @@ public class Parser {
                 ArrayList<Node> list1 = getList(parseFactor());
                 return new NotNode(list1, t);
             case VARIABLE:
-                TokenValue value = checkFactorSymbol(currentToken().getText()); // TODO что-то сделать для отображения
+                //TokenValue value = checkFactorSymbol(currentToken().getText()); // TODO что-то сделать для отображения
                 Node tmp = new VarNode(t);
-                if (value == KEYWORD_ARRAY)
-                    tmp.setResultType(getArrayTypeFromTable(t.getText()));
+                //if (value == KEYWORD_ARRAY)
+                  //  tmp.setResultType(getArrayTypeFromTable(t.getText()));
                 return tmp;
+//            case CONST_INTEGER:
+//                //Node node = new ConstNode(t, NodeType.CONST_INT);
+//                //node.setResultType(CONST_INTEGER); // TODO убрать нахрен тип результата, можно смотреть просто по категории
+//                //return new ConstNode(t, NodeType.CONST_INT, t.getText());
+//            case CONST_DOUBLE:
+//                //Node node1 = new ConstNode(t, NodeType.CONST_DOUBLE);
+//                //node1.setResultType(CONST_DOUBLE);
+//                return new ConstNode(t, NodeType.CONST_DOUBLE, t.getText());
             case CONST_INTEGER:
-                Node node = new ConstNode(t);
-                node.setResultType(CONST_INTEGER);
-                return node;
+                return new ConstNode(t, IntType(), t.getValue());
             case CONST_DOUBLE:
-                Node node1 = new ConstNode(t);
-                node1.setResultType(CONST_DOUBLE);
-                return node1;
+                return new ConstNode(t, DoubleType(), t.getValue());
+            case CONST_STRING:
+                return new ConstNode(t, CharType(), t.getText());
             case SEP_BRACKETS_LEFT:
+                goToNextToken();
                 Node e = parseExpr();
-                require(SEP_BRACKETS_RIGHT);
+                //requireNew(SEP_BRACKETS_RIGHT);
+                requireCurrentToken(SEP_BRACKETS_RIGHT);
+                //requireFollowingToken(SEP_BRACKETS_RIGHT);
+//                throw new SyntaxException(String.format("Error in pos %s:%s required %s but found %s",
+//                        currentToken().getPosX(), currentToken().getPosY(),
+//                        SEP_BRACKETS_RIGHT, currentToken().getText()));
                 return e;
             default:
                 throw new SyntaxException(String.format("Error in pos %s:%s expected identifier, constant or expression ",
@@ -250,6 +159,16 @@ public class Parser {
                 tv == KEYWORD_SHR;
     }
 
+    private boolean isIntOnly(TokenValue tv) {
+        return tv == KEYWORD_SHL     ||
+                tv == KEYWORD_SHR    ||
+                tv == KEYWORD_DIV    ||
+                tv == KEYWORD_MOD    ||
+                tv == KEYWORD_OR     ||
+                tv == KEYWORD_AND    ||
+                tv == KEYWORD_XOR;
+    }
+
     private String castValueToOutput(TokenValue value) {
         switch (value) {
             case CONST_DOUBLE:      return "double";
@@ -266,76 +185,105 @@ public class Parser {
         }
     }
 
-    private TokenValue checkIntegerOperation(TokenValue left, TokenValue right, TokenValue op) throws SyntaxException {
-        //System.out.println(right);
-        if (left != KEYWORD_INTEGER && left != CONST_INTEGER ||
-                right != KEYWORD_INTEGER && right != CONST_INTEGER)
-            throw new SyntaxException(String.format("Error in pos %s:%s operator is not overloaded: \"%s\" %s \"%s\"",
-                    currentToken().getPosX(), currentToken().getPosY(),
-                    castValueToOutput(left), castValueToOutput(op), castValueToOutput(right)));
-        return CONST_INTEGER;
-    }
-
-    private boolean checkTypes(TokenValue currenValue, TokenValue ... values) {
-        for (TokenValue value : values)
-            if (currenValue == value)
-                return true;
-        return false;
-    }
-
-    private TokenValue checkTypeOperation(TokenValue left, TokenValue right) {
-        if (checkTypes(left, KEYWORD_DOUBLE, CONST_DOUBLE) ||
-                checkTypes(right, KEYWORD_DOUBLE, CONST_DOUBLE))
-            return CONST_DOUBLE;
-        return CONST_INTEGER;
-    }
-
-
-    private TokenValue compareRelevanceOfTypes(Node right, Token left, TokenValue operation) throws SyntaxException {
-        // TODO мне надо проверять, есть ли деление или вещ число в операциях чтобы определить, подходит ли то что слева для того, что справа!!1!!1
-
-        TokenValue leftOperandType = left.getTokenValue() == VARIABLE ?
-                getTypeFromTable(left.getText()) : left.getTokenValue();
-        TokenValue rightOperandType = right.token.getTokenValue() == VARIABLE ?
-                getTypeFromTable(right.token.getText()) : right.token.getTokenValue();
-
-        if (right.getResultType() != null)
-            rightOperandType = right.getResultType();
-
-//        System.out.println("right = " + rightOperandType + " his result type = " + right.getResultType());
-//        System.out.println();
-
-        switch (operation) {
-            case KEYWORD_MOD:
-                return checkIntegerOperation(leftOperandType, rightOperandType, operation);
-            case KEYWORD_DIV:
-                return checkIntegerOperation(leftOperandType, rightOperandType, operation);
-            case KEYWORD_SHL:
-                return checkIntegerOperation(leftOperandType, rightOperandType, operation);
-            case KEYWORD_SHR:
-                return checkIntegerOperation(leftOperandType, rightOperandType, operation);
-            case KEYWORD_XOR:
-                return checkIntegerOperation(leftOperandType, rightOperandType, operation);
-            case OP_PLUS:
-                return checkTypeOperation(leftOperandType, rightOperandType);
-            case OP_MINUS:
-                return checkTypeOperation(leftOperandType, rightOperandType);
-            case OP_MULT:
-                return checkTypeOperation(leftOperandType, rightOperandType);
-            case OP_DIVISION:
-                return CONST_DOUBLE;
+    private Type getTypeForOperation(Type left, Type right, Token operation) throws SyntaxException {
+        if (operation == null)
+            throw new SyntaxException(String.format("Error in pos %s:%s unknown operation",
+                    currentToken().getPosX(), currentToken().getPosY()));
+        if (!left.isScalar() || !right.isScalar())
+            throw new SyntaxException(String.format("Error in pos %s:%s incompatible types",
+                    currentToken().getPosX(), currentToken().getPosY()));
+        if (isLogical(operation.getTokenValue()))
+            return integer_;
+        if (left == char_ || right == char_)
+            throw new SyntaxException(String.format("Error in pos %s:%s incompatible types",
+                    currentToken().getPosX(), currentToken().getPosY()));
+        if (isIntOnly(operation.getTokenValue())) {
+            if (left != integer_ || right != integer_)
+                throw new SyntaxException(String.format("Error in pos %s:%s incompatible types",
+                        currentToken().getPosX(), currentToken().getPosY()));
         }
-        if (operation == OP_GREATER          ||
-            operation == OP_LESS             ||
-            operation == OP_GREATER_OR_EQUAL ||
-            operation == OP_LESS_OR_EQUAL    ||
-            operation == OP_EQUAL            ||
-            operation == OP_NOT_EQUAL        ||
-            operation == KEYWORD_AND         ||
-            operation == KEYWORD_OR)
-            return CONST_INTEGER;
-        else
-            return null;
+        Type resultType = left;
+        if (left == integer_ && right == double_ || left == double_ && right == integer_)
+            resultType = double_;
+        else if (left != right)
+            throw new SyntaxException(String.format("Error in pos %s:%s incompatible types",
+                    currentToken().getPosX(), currentToken().getPosY()));
+        if (operation.getTokenValue() == OP_DIVISION)
+            return double_;
+        return resultType;
+    }
+
+    private boolean isCastOnly(Token operation) {
+        return  operation.getTokenValue() != OP_PLUS  &&
+                operation.getTokenValue() != OP_MINUS &&
+                operation.getTokenValue() != OP_MULT  &&
+                operation.getTokenValue() != OP_DIVISION;
+    }
+
+    private Object getResultLogicOperation(Node left, Node right, Token operation) {
+        Double leftValue;
+        Double rightValue;
+        leftValue = left.type == char_ ? (int)left.token.getText().charAt(0) :
+                Double.parseDouble(left.token.getText()); // TODO написать ноду каста если один из операндов дабл
+        rightValue = right.type == char_ ? (int)right.token.getText().charAt(0) :
+                Double.parseDouble(right.token.getText()); // TODO написать ноду каста
+        switch (operation.getTokenValue()) {
+            case OP_GREATER:
+                return leftValue > rightValue ? 1 : 0;
+            case OP_LESS:
+                return leftValue < rightValue ? 1 : 0;
+            case OP_GREATER_OR_EQUAL:
+                return leftValue >= rightValue ? 1 : 0;
+            case OP_LESS_OR_EQUAL:
+                return leftValue <= rightValue ? 1 : 0;
+            case OP_EQUAL:
+                return leftValue.equals(rightValue) ? 1 : 0;
+            case OP_NOT_EQUAL:
+                return !leftValue.equals(rightValue) ? 1 : 0;
+            default: return null;
+        }
+    }
+
+    private String getJavaStyleOperation(Token operation) {
+        switch (operation.getTokenValue()) {
+            case KEYWORD_AND:
+                return "&";
+            case KEYWORD_OR:
+                return "|";
+            case KEYWORD_SHL:
+                return "<<";
+            case KEYWORD_SHR:
+                return ">>";
+            case KEYWORD_DIV:
+                return "/";
+            case KEYWORD_MOD:
+                return "%";
+            default: return null;
+        }
+    }
+
+    private Node calculateConstants(Node left, Node right, Token operation) throws ScriptException {
+        if (left.getToken().getTokenValue() == VARIABLE)
+            left.type = tables.peek().getAliasType(left.getToken());
+        if (right.getToken().getTokenValue() == VARIABLE)
+            right.type = tables.peek().getAliasType(right.getToken());
+        Type type = getTypeForOperation(left.type, right.type, operation);
+        if (left.getToken().getTokenValue() == VARIABLE || right.getToken().getTokenValue() == VARIABLE)
+        //if (!table.isConst(left.getToken()) || !table.isConst(right.getToken()))
+            return new BinOpNode(getList(left, right), operation, type);
+        ConstNode leftNode = (ConstNode)left;
+        String leftOperand = leftNode.token == null ? leftNode.result.toString() : left.token.getText();
+        String expressionToString = leftOperand + operation.getText() + right.token.getText();
+        if (isCastOnly(operation))
+            if (isLogical(operation.getTokenValue()))
+                return new ConstNode(type, getResultLogicOperation(left, right, operation));
+            else
+                expressionToString = leftOperand + getJavaStyleOperation(operation) + right.token.getText();
+        if (operation.getTokenValue() == KEYWORD_DIV) expressionToString += "|0"; // :)
+        ScriptEngineManager manager = new ScriptEngineManager();
+        ScriptEngine engine = manager.getEngineByName("js");
+        Object result = engine.eval(expressionToString);
+        return new ConstNode(type, result);
     }
 
     private ArrayList<Node> getList(Node ... nodes) {
@@ -348,11 +296,10 @@ public class Parser {
             if (currentValue() == value)
                 return;
             if (value == CONST_INTEGER)
-                joiner.add("integer");
+                joiner.add("const integer");
             else if (value == CONST_DOUBLE)
-                joiner.add("double");
-            else
-                joiner.add(hashTokens.get(value));
+                joiner.add("const double");
+            joiner.add(hashTokens.get(value));
         }
 
         throw new SyntaxException(String.format("Error in pos %s:%s required %s but found %s",
@@ -360,860 +307,782 @@ public class Parser {
                 joiner.toString(), currentToken().getText()));
     }
 
-    public Node parse() throws SyntaxException {
+    private void requireCurrentToken(TokenValue ... tokenValues) throws SyntaxException {
+        require(tokenValues);
+    }
+
+    private void requireFollowingToken(TokenValue ... tokenValues) throws SyntaxException {
+        require(tokenValues);
+        goToNextToken();
+    }
+
+    public Type parse() throws ScriptException {
         ArrayList<Node> nodes = new ArrayList<>();
         goToNextToken();
         if (currentValue() == KEYWORD_PROGRAM)
             parseProgram();
-        symTables.add(new LinkedHashMap<>());
-        nodes.addAll(parseDeclarationPart());
-        require(KEYWORD_BEGIN);
-        ArrayList<Node> finalBlock = parseBlock();
-        goToNextToken();
-        require(SEP_DOT);
-        if (finalBlock != null)
-            nodes.addAll(finalBlock);
-        printSymTable();
-        return new MainNode(nodes, new Token(new Pair(TokenType.IDENTIFIER, VARIABLE), 1, 2, "Main Program"));
+        tables = new Stack<>();
+        tables.push(new SymTable());
+        type_declaration_part();
+        return new FunctionType(null, tables.pop(), NIL(), compound_statement());
+        //return new MainNode(nodes, new Token(new Tokens.Pair(TokenType.IDENTIFIER, VARIABLE), 1, 2, "Main Program"));
     }
 
     private void parseProgram() throws SyntaxException {
-        goToNextToken();
-        require(VARIABLE);
-        goToNextToken();
-        require(SEP_SEMICOLON);
-        goToNextToken();
+//        goToNextToken();
+//        require(VARIABLE);
+//        goToNextToken();
+//        require(SEP_SEMICOLON);
+//        goToNextToken();
     }
 
-    private Node getNextDeclarationNode() throws SyntaxException {
-        Token currentToken = currentToken();
-        switch (currentValue()) {
-            case KEYWORD_CONST:
-                return new ConstantNode(parseConst(), currentToken);
-            case KEYWORD_VAR:
-                return new VarNode(parseVariables(), currentToken);
-            case KEYWORD_TYPE:
-                return new ConstantNode(parseTypes(), currentToken);
-            case KEYWORD_PROCEDURE:
-                return new ProcedureNode(parseSubroutine(false), currentToken);
-            case KEYWORD_FUNCTION:
-                return new FunctionNode(parseSubroutine(true), currentToken);
-            default:
-                require(KEYWORD_CONST, KEYWORD_VAR, KEYWORD_TYPE);
-                break;
-        }
-        return null; // Never))) But it's necessary
-    }
 
-    private ArrayList<Node> parseDeclarationPart() throws SyntaxException {
-        ArrayList<Node> list = new ArrayList<>(); // TODO здесь идет обращение к последней таблице символов в листе
-        while (currentValue() != KEYWORD_BEGIN) // end of declaration part
-            list.add(getNextDeclarationNode());
-        return list;
-    }
-
-    private void printSymTable() {
-        Map<String, javafx.util.Pair<TokenValue, ArrayList<Node>>> table = symTables.get(currentSymTableIndex);
-        //java.util.Iterator iter = table.keySet().iterator();
-        for (Map.Entry<String, javafx.util.Pair<TokenValue, ArrayList<Node>>> entry : table.entrySet()) {
-            String key = entry.getKey();
-            javafx.util.Pair<TokenValue, ArrayList<Node>> value = entry.getValue();
-            System.out.print(String.format("%s" +
-                            "%" + (10 - key.length()) + "s"
-                            + "%" + 10 + "s"
-                            + "%" + (10 - value.getKey().toString().length()) + "s",
-                    key, "", value.getKey().toString(), ""));
-            System.out.println();
-            if (value.getValue() != null)
-                value.getValue().forEach(item -> item.print(String.format("%" + 30 + "s", ""), false));
-            System.out.println();
-
-        }
-        //table.entrySet().forEach(item ->
-                //System.out.println(item.getKey() + ": " + item.getValue().getKey() + " " + item.getValue().getValue())
-        //);
-    }
-
-    private void declareRecord(ArrayList<Node> newVariables, Node record, TokenValue value) throws SyntaxException {
-        for (Node node : newVariables) {
-            if (!symTables.get(currentSymTableIndex).containsKey(node.token.getText())) {
-                //System.out.println(node.token.getText() + " " + value);
-                symTables.get(currentSymTableIndex).put(node.token.getText(), new javafx.util.Pair<>(value, record.children.get(0).children));
-                //System.out.println("its value = " + symTable.get(node.token.getText()).getValue());
-            } else
-                throw new SyntaxException(String.format("Error in pos %s:%s duplicate identifier \"%s\"",
-                        node.getToken().getPosX(), node.getToken().getPosY(), node.children == null ? node.getToken().getText() :
-                                node.children.get(0).getToken().getText()));
-        }
-    }
-
-    private void declareVariables(ArrayList<Node> newVariables, TokenValue value) throws SyntaxException {
-        for (Node node : newVariables) {
-            if (!symTables.get(currentSymTableIndex).containsKey(node.token.getText())) {
-                //System.out.println(node.token.getText() + " " + value);
-                symTables.get(currentSymTableIndex).put(node.token.getText(), new javafx.util.Pair<>(value, node.children));
-                //System.out.println("its value = " + symTable.get(node.token.getText()).getValue());
-            } else
-                throw new SyntaxException(String.format("Error in pos %s:%s duplicate identifier \"%s\"",
-                        node.getToken().getPosX(), node.getToken().getPosY(), node.getToken().getText()));
-        }
-    }
-
-    private ArrayList<Node> getIdentifierList(TokenValue mark) throws SyntaxException {
-        ArrayList<Node> newVariables = new ArrayList<>();
-        while (currentValue() != mark) {
-            newVariables.add(new VarNode(currentToken()));
-            goToNextToken();
-            require(SEP_COMMA, mark);
-            if (currentValue() != mark) {
-                goToNextToken();
-                require(VARIABLE);
+    //change name plz
+    private void type_declaration_part() throws ScriptException { // variable_declaration_part
+        //Token currentToken = currentToken();
+        Runnable declarationPartFunction;
+        while (true) {
+            switch (currentValue()) {
+                case KEYWORD_TYPE:
+                    goToNextToken();
+                    requireCurrentToken(VARIABLE);
+                    while (currentValue() == VARIABLE) {
+                        type_declaration(); // type_declaration
+                        requireFollowingToken(SEP_SEMICOLON);
+                    }
+                    break;
+                case KEYWORD_VAR:
+                    goToNextToken();
+                    requireCurrentToken(VARIABLE);
+                    while (currentValue() == VARIABLE) {
+                        variable_declaration(); // variable_declaration
+                        requireFollowingToken(SEP_SEMICOLON);
+                    }
+                    break;
+                case KEYWORD_CONST:
+                    goToNextToken();
+                    requireCurrentToken(VARIABLE);
+                    while (currentValue() == VARIABLE) {
+                        const_declaration(); // const_declaration
+                        requireFollowingToken(SEP_SEMICOLON);
+                    }
+                    break;
+                case KEYWORD_FUNCTION:
+                    goToNextToken();
+                    requireCurrentToken(VARIABLE);
+                    function_declaration(false);
+                    requireFollowingToken(SEP_SEMICOLON);
+                    break;
+                case KEYWORD_PROCEDURE:
+                    goToNextToken();
+                    requireCurrentToken(VARIABLE);
+                    function_declaration(true);
+                    requireFollowingToken(SEP_SEMICOLON);
+                    break;
+                default:
+                    return;
             }
         }
+    }
+
+
+    private ArrayList<Node> identifier_list() throws SyntaxException { // identifier_list
+        ArrayList<Node> newVariables = new ArrayList<>();
+        while (true) {
+            newVariables.add(new VarNode(currentToken()));
+            goToNextToken();
+            requireCurrentToken(SEP_COMMA, OP_COLON);
+            if (currentValue() == OP_COLON)
+                break;
+            goToNextToken();
+        }
+        goToNextToken();
         return newVariables;
     }
 
-    private ArrayList<Node> parseVariables() throws SyntaxException {
-        ArrayList<Node> nodes = new ArrayList<>();
+    private Type parseType() throws ScriptException { // type
+        /*simple_type
+                | structured_type
+                | type_alias;*/
+        Token currentToken = currentToken();
         goToNextToken();
-        require(VARIABLE);
-        while (currentValue() == VARIABLE) {
-            Token typeToken = null;
-            ArrayList<Node> newVariables = getIdentifierList(OP_COLON);
-            goToNextToken();
-            if (isArray()) {
-                declareVariables(newVariables, currentValue());
-                Node arrayNode = parseArray(newVariables);
-                goToNextToken();
-                if (currentValue() == OP_EQUAL) {
-                    if (newVariables.size() > 1)
-                        throw new SyntaxException(String.format("Error in pos %s:%s only one variable can be initialized",
-                                currentToken().getPosX(), currentToken().getPosY()));
-                    goToNextToken();
-                    require(SEP_BRACKETS_LEFT);
-                    ArrayList<Integer> tmp = new ArrayList<>();
-                    int count = newVariables.get(0).children.get(0).children.size() / 2 - 1;
-                    for (int i = 0; i < count; i++) tmp.add(0);
-                    initializeArray1(newVariables, tmp, 0); // after...
-                    // setValueToSymTable(...) ... after
+        Type type;
+        switch (currentToken.getTokenValue()) {
+            case VARIABLE:
+                type = type_alias(currentToken);
+                break;
+            case KEYWORD_ARRAY:
+                return array_type();
+            case KEYWORD_RECORD:
+                return record_type();
+            case KEYWORD_INTEGER:
+            case KEYWORD_DOUBLE:
+            case KEYWORD_CHARACTER:
+                type = simple_type(currentToken);
+         //       goToNextToken();
+                break;
+            default:
+                throw new SyntaxException(String.format("Error in pos %s:%s expected type but got %s",
+                        currentToken.getPosX(), currentToken.getPosY(), currentToken.getText()));
+        }
+//        requireFollowingToken(SEP_SEMICOLON, OP_EQUAL);
+        return type;
+    }
+
+    private Type type_alias(Token token) throws ScriptException {
+        //goToNextToken();
+        return tables.peek().getAliasType(token);
+    }
+
+    private Type simple_type(Token token) throws SyntaxException { // simple_type
+        //goToNextToken();
+        if (token.getTokenValue() == KEYWORD_INTEGER)
+            return IntType();
+        if (token.getTokenValue() == KEYWORD_DOUBLE)
+            return DoubleType();
+        return CharType();
+    }
+    // a: array [1..10] of integer = (1, 2, .. );
+    private Type array_type() throws ScriptException { // array_type
+        requireFollowingToken(SEP_BRACKETS_SQUARE_LEFT);
+        Node min = parseExpr();
+        if (min.type != integer_) // TODO make function check node Type
+            throw new SyntaxException(String.format("Error in pos %s:%s expected const integer in array definition but found %s ",
+                    currentToken().getPosX(), currentToken().getPosY(), min.type));
+        requireFollowingToken(SEP_DOUBLE_DOT);
+        Node max = parseExpr();
+        requireFollowingToken(SEP_BRACKETS_SQUARE_RIGHT);
+        if (max.type != integer_)
+            throw new SyntaxException(String.format("Error in pos %s:%s expected const integer in array definition but found %s ",
+                    currentToken().getPosX(), currentToken().getPosY(), max.type));
+        requireFollowingToken(KEYWORD_OF);
+        return new ArrayType(parseType(), (ConstNode)min, (ConstNode)max);
+    }
+    // a : record a : integer;  b : double; end;
+    private Type record_type() throws ScriptException {
+        SymTable fields = new SymTable();
+        while (currentValue() == VARIABLE) { // { identifier_list, ":", type, ";" };
+            fields.addVARSymbol(identifier_list(), parseType(), null, false); // May be not....
+            requireFollowingToken(SEP_SEMICOLON);
+        }
+        requireFollowingToken(KEYWORD_END);
+        return new RecordType(fields);
+    }
+
+    private Node typed_constant(Type type) throws ScriptException { // typed_constant
+        Node typedConstant;
+        switch (type.category) {
+            case RECORD:
+                typedConstant = new RecordNode();
+                requireFollowingToken(SEP_BRACKETS_LEFT);
+                RecordType recordType = (RecordType)type;
+                for (Map.Entry<String, SymTable.Symbol> pair : recordType.fields.symTable.entrySet()) {
+                    Token variable = currentToken();
+                    requireFollowingToken(VARIABLE);
+                    if (!pair.getKey().equals(variable.getText()))
+                        throw new SyntaxException(recordType.fields.symTable.containsKey(variable.getText()) ?
+                                String.format("Error in pos %s:%s illegal initialization order ",
+                                        variable.getPosX(), variable.getPosY()) :
+                                String.format("Error in pos %s:%s unknown record field identifier %s ",
+                                        variable.getPosX(), variable.getPosY(), variable.getText()));
+                    requireFollowingToken(OP_COLON);
+                    typedConstant.children.add(typed_constant(pair.getValue().type));
+                    requireFollowingToken(SEP_SEMICOLON);
                 }
-                setValuesToSymTable(arrayNode);
-                nodes.add(arrayNode);
-                require(SEP_SEMICOLON);
-                goToNextToken();
-                continue;
-            }
-            else if (isRecord()) {
-                typeToken = currentToken();
-                Node record = parseRecord(newVariables);
-                declareVariables(newVariables, typeToken.getTokenValue());
-                require(SEP_SEMICOLON, OP_EQUAL);
-                nodes.add(record);
-                if (currentValue() == OP_EQUAL)
-                    initializeRecord(record);
-                goToNextToken();
-                continue;
-            }
-            if (currentValue() == VARIABLE) {
-                int symTableIndex = checkAlias(currentToken().getText());
-                declareVariables(newVariables, currentValue());
-                typeToken = symTables.get(symTableIndex).get(currentToken().getText()).getValue().get(0).getToken();
-                //System.out.println(symTable.get(currentToken().getText()).getKey());
-                Node varNode = new VarNode(newVariables, typeToken);
-                nodes.add(varNode);
-                initializeVariable(typeToken.getTokenValue(), newVariables);
-            } else {
-                require(KEYWORD_INTEGER, KEYWORD_DOUBLE);
-                //type = currentValue();
-                typeToken = currentToken();
-                declareVariables(newVariables, currentValue());
-                Node varNode = (currentValue() == KEYWORD_INTEGER) ?
-                        new VarIntegerNode(newVariables, currentToken()) :
-                        new VarDoubleNode(newVariables, currentToken());
-                nodes.add(varNode);
-                initializeVariable(typeToken.getTokenValue(), newVariables);
-            }
-            //findSemicolon();
-        }
-        return nodes;
-    }
-
-    private void parseInsideArrayDefinition(ArrayList<Node> list, int left, int right) throws SyntaxException {
-        TokenValue requiredType = list.get(0).children.get(0).getToken().getTokenValue();
-        for (int i = left; i <= right; i++) {
-            if (requiredType == KEYWORD_INTEGER)
-                if (currentValue() == CONST_DOUBLE)
-                    throw new SyntaxException(String.format("Error in pos %s:%s got \"double\" expected \"integer\"",
-                            currentToken().getPosX(), currentToken().getPosY()));
-            goToNextToken();
-            require(i < right ? SEP_COMMA : SEP_BRACKETS_RIGHT);
-            if (currentValue() != SEP_BRACKETS_RIGHT)
-                goToNextToken();
-        }
-    }
-
-    private int getDimensionByIndex(ArrayList<Node> list, int index) {
-        return Integer.parseInt(list.get(0).children.get(0).children.get(index).getToken().getText());
-    }
-
-    private void initializeRecord(Node record) throws SyntaxException {
-        goToNextToken();
-        require(SEP_BRACKETS_LEFT);
-        for (Node valueOfRecord : record.children.get(0).children) {
-            goToNextToken();
-            TokenValue currentValue = valueOfRecord.children.get(0).getToken().getTokenValue();
-            require(currentValue);
-            Token recordToken = valueOfRecord.children.get(0).getToken();
-            if (!currentToken().getText().equals(recordToken.getText()))
-                throw new SyntaxException(String.format("Error in pos %s:%s unknown record field identifier \"%s\"",
+                requireFollowingToken(SEP_BRACKETS_RIGHT);
+                return typedConstant;
+            case ARRAY:
+                ArrayType arrayType = (ArrayType)type;
+                int min = Integer.parseInt(arrayType.min.result.toString());
+                int max = Integer.parseInt(arrayType.max.result.toString());
+                Type element = arrayType.elementType;
+                requireFollowingToken(SEP_BRACKETS_LEFT);
+                typedConstant = new ArrayNode();
+                for (int i = min; i <= max; i++) {
+                    typedConstant.children.add(typed_constant(element));
+                    if (i != max) {
+                        requireFollowingToken(SEP_COMMA);
+                    }
+                }
+                requireFollowingToken(SEP_BRACKETS_RIGHT);
+                return typedConstant;
+            case INT:
+            case DOUBLE:
+            case CHAR:
+                typedConstant = parseLogicalExpression();
+                requireTypesCompatibility(type, typedConstant.type, false);
+                return typedConstant;
+            default:
+                throw new SyntaxException(String.format("Error in pos %s:%s expected array, record, integer, char or double " +
+                                "in typed constant but found %s ",
                         currentToken().getPosX(), currentToken().getPosY(), currentToken().getText()));
-            goToNextToken();
-            require(OP_COLON);
-            if (valueOfRecord.getToken().getTokenValue() == KEYWORD_RECORD)
-                initializeRecord(valueOfRecord);
-            else if (valueOfRecord.getToken().getTokenValue() == KEYWORD_ARRAY) {
-                goToNextToken();
-                require(SEP_BRACKETS_LEFT);
-                ArrayList<Integer> tmp = new ArrayList<>();
-                int count = valueOfRecord.children.get(0).children.get(0).children.size() / 2 - 1;
-                for (int i = 0; i < count; i++) tmp.add(0);
-                ArrayList<Node> nodes =  valueOfRecord.children;
-                initializeArray1(nodes, tmp, 0);
-                require(SEP_SEMICOLON);
-            }
-            else{
-                Node expression = parseExpr();
-                checkOperationCompatibility(valueOfRecord.children.get(0).getToken().getTokenValue(), expression.getResultType());
-                require(SEP_SEMICOLON);
-                System.out.println("checked");
-            }
-        }
-        require(SEP_SEMICOLON);
-        goToNextToken();
-        require(SEP_BRACKETS_RIGHT);
-        goToNextToken();
-        require(SEP_SEMICOLON);
-    }
-
-    private void initializeArray1(ArrayList<Node> list, ArrayList<Integer> marks, int position) throws SyntaxException {
-        int dimensionsCount = list.get(0).children.get(0).children.size() / 2;
-        goToNextToken();
-        int index1 = position == 0 ? 0 : position * 2;
-        int index2 = position == 0 ? 1 : position * 2 + 1;
-        int rightSize = getDimensionByIndex(list, index2) - getDimensionByIndex(list, index1) + 1; // т.к.[]
-        if (position < dimensionsCount - 1) {  // попадаем в промежуток до - 1 элемента
-            require(SEP_BRACKETS_LEFT, SEP_COMMA, SEP_BRACKETS_RIGHT, SEP_SEMICOLON, CONST_INTEGER, CONST_DOUBLE);
-            switch (currentValue()) {
-                case SEP_COMMA:
-                    marks.set(position, marks.get(position) + 1); // Сохранять будем только когда мы вышли из скобки или на запятой стоим
-                    // будем чистить здесь)//noooo
-                    if (marks.get(position) == rightSize)
-                        require(SEP_BRACKETS_RIGHT);
-                        //System.out.println("Необходимый размер превышен 523, " + currentToken().getPosX() + " " + currentToken().getPosY());
-                    initializeArray1(list, marks, position + 1); // пробросим в ELSE
-                    break;
-                case SEP_BRACKETS_RIGHT:
-                    marks.set(position, marks.get(position) + 1); // Сохранять будем только когда мы вышли из скобки(поднялись из ELSE)
-                    // чистим
-                    // проверяем размерность
-                    if (marks.get(position) != rightSize)
-                        require(SEP_COMMA);
-                        //System.out.println("Необходимый размер не набран 531, " + currentToken().getPosX() + " " + currentToken().getPosY());
-                    if (position != 0)
-                        for (int i = position; i < marks.size(); i++)
-                            marks.set(i, 0);
-                    initializeArray1(list, marks, position == 0 ? 0 : position - 1); // будем ждать запятую или
-                    break;
-                case SEP_SEMICOLON:
-                    return;
-                case SEP_BRACKETS_LEFT:
-                    initializeArray1(list, marks, position + 1);
-                    break;
-            }
-        } else {
-            require(SEP_BRACKETS_LEFT, CONST_INTEGER, CONST_DOUBLE, SEP_SEMICOLON);
-            if (currentValue() == SEP_BRACKETS_LEFT)
-                goToNextToken();
-            if (currentValue() == SEP_SEMICOLON) {
-                if (position == 0)
-                    return;
-                if (marks.get(position) != rightSize)
-                    throw new SyntaxException(String.format("Error in pos %s:%s not dialed the required size",
-                            currentToken().getPosX(), currentToken().getPosY()));
-                  //  System.out.println("Необходимый размер не набран 538, " + currentToken().getPosX() + " " + currentToken().getPosY());
-                else
-                    return;
-            }
-            parseInsideArrayDefinition(list, getDimensionByIndex(list, index1),  getDimensionByIndex(list, index2));
-            require(SEP_BRACKETS_RIGHT);
-            initializeArray1(list, marks, position == 0 ? 0 : position - 1);
         }
     }
 
-    private void initializeVariable(TokenValue type, ArrayList<Node> list) throws SyntaxException {
-        goToNextToken();
-        if (currentValue() == SEP_SEMICOLON)
+    private void requireTypesCompatibility(Type left, Type right, boolean allowedLeftInt) throws SyntaxException {
+        if (left == right
+                || left == DoubleType() && right == IntType()
+                || allowedLeftInt && left == IntType() && right == DoubleType())
+            return;
+        throw new SyntaxException(String.format("Error in pos %s:%s incompatible types: got %s expected integer",
+                currentToken().getPosX(), currentToken().getPosY(), right.category));
+    }
+
+    private Node parseConstValue(ArrayList<Node> identifiers, Type type) throws ScriptException {
+        Node value = null;
+        if (currentValue() == OP_EQUAL) {
             goToNextToken();
-        else {
-            require(OP_EQUAL, SEP_SEMICOLON);
-            //goToNextToken();
-            if (list.size() > 1)
+            if (identifiers.size() > 1)
                 throw new SyntaxException(String.format("Error in pos %s:%s only one variable can be initialized",
                         currentToken().getPosX(), currentToken().getPosY()));
-            Node expression = parseExpr();
-            if (type == KEYWORD_INTEGER &&  expression.getResultType() == CONST_DOUBLE)
-                throw new SyntaxException(String.format("Error in pos %s:%s incompatible types: got \"double\" expected \"integer\"",
-                        currentToken().getPosX(), currentToken().getPosY()));
-            setValueToSymTable(list.get(0).getToken().getText(), expression);
-            //System.out.println(symTables.get(0).get(list.get(0).getToken().getText()).getValue().get(0));
-            require(SEP_SEMICOLON);
-            goToNextToken();
+            value = typed_constant(type);
         }
+        return value;
     }
 
-    private ArrayList<Node> parseConst() throws SyntaxException {
-        ArrayList<Node> nodes = new ArrayList<>();
+    private void variable_declaration() throws ScriptException { // type_declaration_part,  variable_declaration_part
+        ArrayList<Node> identifiers = identifier_list();
+        Type type = parseType();
+        Node value = parseConstValue(identifiers, type);
+        tables.peek().addVARSymbol(identifiers, type, value, false);
+    }
+
+    private void type_declaration() throws ScriptException { // type_declaration = identifier, "=", type, ";";
+        Token identifier = currentToken();
         goToNextToken();
-        require(VARIABLE);
-        while (currentValue() == VARIABLE) {
-            Token newConstToken = currentToken();
-            goToNextToken();
-            require(OP_EQUAL);
-            ArrayList<Node> list = getList(parseLogicalExpression());
-            nodes.add(new ConstantNode(list, newConstToken));
-            require(SEP_SEMICOLON);
-            goToNextToken();
-        }
-        declareVariables(nodes, KEYWORD_CONST);
-        return nodes;
+        requireFollowingToken(OP_EQUAL);
+        Type type = parseType();
+        tables.peek().addTYPESymbol(identifier, type);
     }
 
-    private ArrayList<Node> parseDimensional() throws SyntaxException {
-        ArrayList<Node> nodes = new ArrayList<>();
-        while (currentValue() != SEP_BRACKETS_SQUARE_RIGHT) {
-            nodes.add(parseExpr());
-            require(SEP_DOUBLE_DOT);
-            nodes.add(parseExpr());
-            require(SEP_BRACKETS_SQUARE_RIGHT, SEP_COMMA);
-        }
-        return nodes;
-    }
-
-    private ArrayList<Node> parseTypes() throws SyntaxException {
-        ArrayList<Node> nodes = new ArrayList<>();
+    private void const_declaration() throws ScriptException { // typed_constant_declaration | constant_declaration
+        Token identifier = currentToken();
         goToNextToken();
-        require(VARIABLE);
-        while (currentValue() == VARIABLE) {
-            //ArrayList<Node> newVariables = getIdentifierList(OP_EQUAL);
-            //ArrayList<Node> newVariables = getIdentifierList(null);
-            Token currentVariable = currentToken();
-            goToNextToken();
-            require(OP_EQUAL);
-            goToNextToken();
-            if (isSimpleType()) {
-                Node varNode = currentValue() == KEYWORD_INTEGER ?
-                        new VarIntegerNode(getList(new VarNode(currentToken())), currentVariable) :
-                        new VarDoubleNode(getList(new VarNode(currentToken())), currentVariable);
-                nodes.add(varNode);
-//                for (Node variable : newVariables)
-//                    variable.setChildren();
-                findSemicolon();
-            }
-            else if (isType()) {
-                require(VARIABLE); // TODO make types checking
-                nodes.add(new VarNode(currentVariable));
-                findSemicolon();
-            }
-            else if (isArray()) {
-                nodes.add(parseArray(getList(new VarNode(currentVariable))));
-                findSemicolon();
-            }
-            else if (isRecord()) {
-                //Token token =
-                //Node record = parseRecord(getList(new VarNode(currentVariable)));
-                //declareVariables(newVariables, typeToken.getTokenValue());
-                nodes.add(parseRecord(getList(new VarNode(currentVariable))));
+        switch (currentValue()) {
+            case OP_EQUAL: {
                 goToNextToken();
-            }
+                Node expression = parseLogicalExpression();
+                if (!(expression instanceof ConstNode))
+                    throw new SyntaxException(String.format("Error in pos %s:%s illegal expression ",
+                            currentToken().getPosX(), currentToken().getPosY()));
+                tables.peek().addCONSTSymbol(identifier, expression.type, expression);
+                return;
+                }
+            case OP_COLON: {
+                goToNextToken();
+                Type type = parseType();
+                requireFollowingToken(OP_EQUAL);
+                Node typed_constant = typed_constant(type);
+                tables.peek().addCONSTSymbol(identifier, type, typed_constant);
+                return;
+                }
+            default:
+                throw new SyntaxException(String.format("Error in pos %s:%s expected colon or equal",
+                        currentToken().getPosX(), currentToken().getPosY()));
         }
-        declareVariables(nodes, KEYWORD_TYPE);
-        return nodes;
     }
 
-    private Node parseRecord(ArrayList<Node> newVariables) throws SyntaxException {
-        Token recordToken = currentToken();
-        ArrayList<Node> children = new ArrayList<>();
+    /*
+    function f : Integer;
+    begin
+    end;
+     */
 
+    private void function_declaration(boolean isProcedure) throws ScriptException { // function_header, ";", block, ";";
+        Token functionIdentifier = currentToken();
         goToNextToken();
-        while (currentValue() != KEYWORD_END) {
-            ArrayList<Node> identifiers = getIdentifierList(OP_COLON);
-            goToNextToken();
-            if (isArray()) {
-                children.add(parseArray(identifiers));
-                findSemicolon();
-                continue;
-            }
-            if (isSimpleType() || currentValue() == VARIABLE) {
-                Node simpleTypeNode = (currentValue() == KEYWORD_INTEGER) ?
-                        new VarIntegerNode(identifiers, currentToken()) :
-                        new VarDoubleNode(identifiers, currentToken());
-                children.add(simpleTypeNode);
-                findSemicolon();
-            }
-            if (isRecord())
-                children.add(parseRecord(identifiers));
-        }
-        require(KEYWORD_END);
-        goToNextToken();
-        //require(SEP_SEMICOLON);
-        //goToNextToken();
-        for (Node variable : newVariables)
-            variable.setChildren(children);
-        return new VarNode(newVariables, recordToken);
-    }
-
-    private TokenValue currentValue() {
-        return tokenizer.getCurrentToken().getTokenValue();
-    }
-
-    private void requireBasicTypes() throws SyntaxException {
-        require(KEYWORD_INTEGER, KEYWORD_DOUBLE, KEYWORD_ARRAY);
-    }
-
-    private Node parseArray(ArrayList<Node> newVariables) throws SyntaxException {
-        Token arrayToken = currentToken();
-        ArrayList<Node> arrayDimensional = new ArrayList<>();
-        requireBasicTypes();
-        while (currentValue() == KEYWORD_ARRAY) {
-            goToNextToken();
-            require(SEP_BRACKETS_SQUARE_LEFT);
-            arrayDimensional.addAll(parseDimensional());
-            goToNextToken();
-            require(KEYWORD_OF);
-            goToNextToken();
-        }
-        int i;
-        Token typeToken = null;
-        if (currentValue() == VARIABLE) {
-            i = checkAlias(currentToken().getText());
-            typeToken = symTables.get(i).get(currentToken().getText()).getValue().get(0).getToken();
-        }
-        if (typeToken == null)
-            require(KEYWORD_INTEGER, KEYWORD_DOUBLE);
-        Node typeNode = new VarNode(arrayDimensional, typeToken == null ? currentToken() : typeToken); // TODO это тип, надо проверить alias и потом на базовый тип
-        for (Node variable : newVariables)
-            variable.setChildren(getList(typeNode));
-        return new ArrayNode(newVariables, arrayToken);
-    }
-
-    private ArrayList<Node> parseSubroutine(boolean isFunction) throws SyntaxException {
-        symTables.add(new LinkedHashMap<>()); // TODO
-        currentSymTableIndex++;
-        goToNextToken();
-        require(VARIABLE);
-        goToNextToken();
-        ArrayList<Node> parameters = null;
-        ArrayList<Node> localParameters = null;
-        ArrayList<Node> block = null;
-        if (currentValue() == SEP_BRACKETS_LEFT || isFunction)
-            parameters = parseFormalParameters(isFunction);
-        if (currentValue() != KEYWORD_BEGIN) {
-            require(SEP_SEMICOLON);
-            goToNextToken();
-            localParameters = parseDeclarationPart();
-        }
-        require(KEYWORD_BEGIN);
-        block = parseBlock();
-        findSemicolon();
-        ArrayList<Node> procedureNodes = new ArrayList<>();
-        if (parameters != null)
-            procedureNodes.addAll(parameters);
-        if (localParameters != null)
-            procedureNodes.addAll(localParameters);
-        procedureNodes.addAll(block);
-        currentSymTableIndex--;
-        return procedureNodes;
-    }
-
-    private ArrayList<Node> parseFormalParameters(boolean isFunction) throws SyntaxException {
-        ArrayList<Node> parameters = new ArrayList<>();
+        SymTable params = new SymTable();
         if (currentValue() == SEP_BRACKETS_LEFT) {
             goToNextToken();
             while (currentValue() != SEP_BRACKETS_RIGHT) {
+                requireCurrentToken(VARIABLE, KEYWORD_VAR);
                 switch (currentValue()) {
+                    case VARIABLE: {
+                        ArrayList<Node> identifiers = identifier_list();
+                        Type type = parseType();
+                        Node value = parseConstValue(identifiers, type);
+                        params.addVARSymbol(identifiers, type, value, false);
+                        requireCurrentToken(SEP_BRACKETS_RIGHT, SEP_SEMICOLON);
+                        if (currentValue() == SEP_BRACKETS_RIGHT) break;
+                        goToNextToken();
+                        break;
+                    }
                     case KEYWORD_VAR:
                         goToNextToken();
-                        parameters.addAll(getFormalParameters());
-                        goToNextToken();
-                        break;
-                    case VARIABLE:
-                        parameters.addAll(getFormalParameters());
-                        goToNextToken();
-                        break;
-                    default:
-                        require(SEP_SEMICOLON, SEP_BRACKETS_RIGHT);
+                        requireCurrentToken(VARIABLE);
+                        ArrayList<Node> identifiers = identifier_list();
+                        Type type = parseType();
+                        params.addVARSymbol(identifiers, type, null, true);
+                        requireCurrentToken(SEP_BRACKETS_RIGHT, SEP_SEMICOLON);
+                        if (currentValue() == SEP_BRACKETS_RIGHT) break;
                         goToNextToken();
                         break;
                 }
             }
+            goToNextToken();
         }
-        if (isFunction) {
-            if (currentValue() == SEP_BRACKETS_RIGHT)
+        Type returnType = NIL();
+        if (!isProcedure) {
+            requireFollowingToken(OP_COLON);
+            returnType = parseType(); // type_identifier
+        }
+        FunctionType functionType = new FunctionType(params, null, returnType, null);
+        tables.peek().addVARSymbol(getList(new VarNode(functionIdentifier)), functionType, null, false);
+        requireFollowingToken(SEP_SEMICOLON);
+        tables.push(new SymTable());
+        type_declaration_part();
+        functionType.compound_statement = compound_statement();
+        functionType.vars = tables.pop();
+    }
+
+    private Node parseStatements() throws ScriptException {
+        Node statement = new BodyFunction();
+        do {
+            goToNextToken();
+            statement.children.add(statement_part());
+        } while (currentValue() == SEP_SEMICOLON);
+        return statement;
+    }
+
+    private Node compound_statement() throws ScriptException {
+        requireCurrentToken(KEYWORD_BEGIN);
+        Node statement = parseStatements();
+        requireFollowingToken(KEYWORD_END);
+        return statement;
+    }
+
+    private Node statement_part() throws ScriptException { // compound_statement
+        switch (currentValue()) { // statement_list
+            case VARIABLE:
+                Token currentToken = currentToken();
                 goToNextToken();
-            require(OP_COLON);
-            goToNextToken();
-            require(KEYWORD_INTEGER, KEYWORD_DOUBLE); // TODO change this when checking types
-            parameters.add(new VarNode(currentToken())); // Change...
+                return assignment_statement(currentToken);
+            case KEYWORD_IF:
+                goToNextToken();
+                return if_statement();
+            case KEYWORD_BEGIN:
+                return compound_statement();
+            case KEYWORD_WHILE:
+                return while_statement();
+            case KEYWORD_FOR:
+                return for_statement();
+            case SEP_SEMICOLON:
+            case KEYWORD_END:
+                return null;
+            default:
+                throw new SyntaxException(String.format("Error in pos %s:%s unexpected token %s",
+                        currentToken().getPosX(), currentToken().getPosY(), currentToken().getText()));
         }
-        goToNextToken();
-        require(SEP_SEMICOLON);
-        return parameters;
     }
 
-    private ArrayList<Node> getFormalParameters() throws SyntaxException {
-        ArrayList<Node> parameters = new ArrayList<>();
-        ArrayList<Node> newVarVariables = getIdentifierList(OP_COLON);
+    private Node while_statement() throws ScriptException {
+        WhileNode whileNode = new WhileNode();
         goToNextToken();
-        require(KEYWORD_INTEGER, KEYWORD_DOUBLE, KEYWORD_ARRAY);
-        if (currentValue() == KEYWORD_ARRAY) {
-            Token arrayToken = currentToken();
-            goToNextToken();
-            goToNextToken();
-            VarNode varNode = new VarNode(newVarVariables, currentToken());
-            parameters.add(new ArrayNode(getList(varNode), arrayToken));
-        }
-        else
-            parameters.add(currentValue() == KEYWORD_INTEGER ?
-                    new VarIntegerNode(newVarVariables, currentToken()) :
-                    new VarDoubleNode(newVarVariables, currentToken()));
-        return parameters;
+        whileNode.setCondition(parseLogicalExpression());
+        requireFollowingToken(KEYWORD_DO);
+        whileNode.setBody(statement_part());
+        return whileNode;
     }
 
-    private Node getLogicalCondition() throws SyntaxException {
+    private Node for_statement() throws ScriptException {
         goToNextToken();
-        require(VARIABLE);
-        checkIfConditionVariable(currentToken().getText());
-        Node leftCondition = new VarNode(currentToken());
+        requireCurrentToken(VARIABLE);
+        ForNode forNode = new ForNode(tables.peek().getSymbol(currentToken()));
         goToNextToken();
-        if (!isLogical(currentValue()))
-            throw new SyntaxException(String.format("Error in pos %s:%s required %s but found %s",
-                    tokenizer.getCurrentToken().getPosX(), currentToken().getPosY(),
-                    "logical", currentToken().getText()));
-        Token logicToken = currentToken();
-        goToNextToken();
-        require(VARIABLE, CONST_INTEGER, CONST_DOUBLE);
-        Node rightCondition = new VarNode(currentToken());
-        return new LogicOperation(getList(leftCondition, rightCondition), logicToken);
-    }
-
-    private TokenValue getTypeFromTable(String key) {
-        for (int i = 0; i < symTables.size(); i++) {
-            if (symTables.get(i).containsKey(key))
-                return symTables.get(i).get(key).getKey();
-        }
-        return null; // Never! But it's necessary
-    }
-
-    private TokenValue convertToType(Node expression) {
+        requireFollowingToken(KEYWORD_ASSIGN);
+        forNode.setFrom(parseLogicalExpression());
+        if (currentToken().getTokenValue() == KEYWORD_DOWNTO)
+            forNode.isDownTo = true;
+        requireFollowingToken(KEYWORD_TO, KEYWORD_DOWNTO);
+        forNode.setTo(parseLogicalExpression());
+        requireFollowingToken(KEYWORD_DO);
+        forNode.setBody(statement_part());
         return null;
     }
 
-    private void checkOperationCompatibility(TokenValue left, TokenValue right) throws SyntaxException {
-        if (left == CONST_INTEGER || left == KEYWORD_INTEGER)
-            if (right == CONST_DOUBLE)
-                throw new SyntaxException(String.format("Error in pos %s:%s got \"double\" expected \"integer\"",
-                        currentToken().getPosX(), currentToken().getPosY()));
-    }
-
-    private void checkOperationCompatibility(String value, TokenValue right, boolean isArray) throws SyntaxException {
-        int i = checkPresenceSymbol(value);
-        TokenValue left;
-        javafx.util.Pair<TokenValue, ArrayList<Node>> tokenValuePair = symTables.get(i).get(value);
-        left = isArray ? tokenValuePair.getValue().get(0).children.get(0).getToken().getTokenValue()
-                : tokenValuePair.getKey();
-        if (left == CONST_INTEGER || left == KEYWORD_INTEGER)
-            if (right == CONST_DOUBLE)
-                throw new SyntaxException(String.format("Error in pos %s:%s got \"double\" expected \"integer\"",
-                        currentToken().getPosX(), currentToken().getPosY()));
-    }
-
-    private ArrayList<Integer> getDimensionFromSymTable(String value) throws SyntaxException {
-        int index = checkPresenceSymbol(value);
-        ArrayList<Node> arrayNode = symTables.get(index).get(value).getValue().get(0).children.get(0).children;
-        ArrayList<Integer> dimension = new ArrayList<>();
-        for (Node node : arrayNode)
-            dimension.add(Integer.parseInt(node.getToken().getText()));
-        return dimension;
-    }
-
-    private void checkLengthBrackets(String value) throws SyntaxException {
-        ArrayList<Integer> dimension = getDimensionFromSymTable(value);
-        int countBrackets = 0;
-        while (countBrackets < dimension.size() / 2) {
-            require(SEP_BRACKETS_SQUARE_LEFT);
-            Node index = parseExpr(); // TODO потом здесь будет какая-то работа с памятью, пока только проверки :-)
-            if (index.getResultType() != CONST_INTEGER)
-                throw new SyntaxException(String.format("Error in pos %s:%s got \"double\" expected \"integer\"",
-                        currentToken().getPosX(), currentToken().getPosY()));
-            require(SEP_BRACKETS_SQUARE_RIGHT);
-            goToNextToken();
-            countBrackets++;
-        }
-        if (countBrackets + 1 != dimension.size() / 2 && currentValue() == SEP_BRACKETS_SQUARE_LEFT)
-            throw new SyntaxException(String.format("Error in pos %s:%s expected identifier, constant or expression ",
-                    currentToken().getPosX(), currentToken().getPosY()));
-    }
-
-    private Node parseStatement() throws SyntaxException {
-        boolean isArray = false;
-        require(VARIABLE);
-        Token variableToken = currentToken();
-        goToNextToken();
-        require(KEYWORD_ASSIGN, SEP_BRACKETS_SQUARE_LEFT);
-        isArray = currentValue() == SEP_BRACKETS_SQUARE_LEFT;
-        if (isArray)
-           checkLengthBrackets(variableToken.getText());
-        require(KEYWORD_ASSIGN);
-        Node expression = parseLogicalExpression();
-        // достаём из таблицы символов
-        checkOperationCompatibility(variableToken.getText(), expression.getResultType(), isArray);
-        //compareRelevanceOfTypes()
-        //System.out.println(expression.getResultType() + " TYPE ANS");
-        //compareRelevanceOfTypes(variableToken.getTokenValue(), convertToType(expression), KEYWORD_ASSIGN);
-        //setValueToSymTable(variableToken.getText(), expression);
-        require(SEP_SEMICOLON);
-        return new VarNode(getList(expression), variableToken);
-    }
-
-    private Node parseIf() throws SyntaxException {
-        Token ifToken = currentToken();
-        ArrayList<Node> ifChildren = new ArrayList<>();
-        ifChildren.add(getLogicalCondition());
-        goToNextToken();
-        require(KEYWORD_THEN);
-        goToNextToken();
-        if (currentValue() == KEYWORD_BEGIN)
-            ifChildren.addAll(parseBlock());
-        else
-            ifChildren.add(parseStatement());
-        if (currentValue() == KEYWORD_END) {
-            goToNextToken();
-            if (currentValue() != KEYWORD_ELSE) {
-                require(SEP_SEMICOLON);
-                goToNextToken();
-            }
-        }
-        else
-            goToNextToken();
+    private Node if_statement() throws ScriptException {
+        IfNode ifNode = new IfNode();
+        ifNode.setIf_(parseLogicalExpression());
+        requireFollowingToken(KEYWORD_THEN);
+        ifNode.setThen_(statement_part());
         if (currentValue() == KEYWORD_ELSE) {
-            while (currentValue() == KEYWORD_ELSE) {
-                Token elseToken = currentToken();
-                ArrayList<Node> elseChildren = new ArrayList<>();
-                goToNextToken();
-                if (currentValue() == KEYWORD_BEGIN || currentValue() == KEYWORD_IF) {
-                    if (currentValue() == KEYWORD_IF) {
-                        Token elseIfToken = currentToken();
-                        ArrayList<Node> elseIfChildren = new ArrayList<>();
-                        elseIfChildren.add(getLogicalCondition());
-                        goToNextToken();
-                        require(KEYWORD_THEN);
-                        goToNextToken();
-                        if (currentValue() == KEYWORD_BEGIN)
-                            elseIfChildren.addAll(parseBlock());
-                        else
-                            elseIfChildren.add(parseStatement());
-                        ifChildren.add(new ElseIfNode(elseIfChildren, elseIfToken));
-                        goToNextToken();
-                        if (currentValue() != KEYWORD_ELSE)
-                            require(SEP_SEMICOLON);
-                        continue;
-                    } else
-                        elseChildren.addAll(parseBlock());
-                } else {
-                    elseChildren.add(parseStatement());
-                    ifChildren.add(new ElseNode(elseChildren, elseToken));
-                    break;
-                }
-                goToNextToken();
-            }
-            require(SEP_SEMICOLON);
             goToNextToken();
+            ifNode.setElse_(statement_part());
         }
-        return new IfNode(ifChildren, ifToken);
+        return ifNode;
     }
 
-    private void isLoopBlock(ArrayList<Node> loopChildren) throws SyntaxException {
-        if (currentValue() == KEYWORD_BEGIN) {
-            loopChildren.addAll(parseBlock());
-            goToNextToken();
-            require(SEP_SEMICOLON);
+    private Node assignment_statement(Token identifier) throws ScriptException {
+        Type identifierType = tables.peek().getAliasType(identifier);
+        requireFollowingToken(KEYWORD_ASSIGN);
+        Node typedConstant = parseLogicalExpression();
+        requireTypesCompatibility(identifierType, typedConstant.type, false);
+        return new AssignmentStatement(typedConstant, identifier);
+    }
+
+    private void simple_statement() {
+        /*assignment_statement
+                | procedure_statement
+                | read
+                | write
+                | "continue"
+                | "break"
+                | exit;*/
+        switch (currentValue()) {
+            case VARIABLE:
+
         }
-        else
-            loopChildren.add(parseStatement());
-    }
-
-    private Node parseFor() throws SyntaxException {
-        ArrayList<Node> loopChildren = new ArrayList<>();
-        Token loopToken = currentToken();
-        goToNextToken();
-        require(VARIABLE);
-        Token loopCounterVariable = currentToken();
-        checkLoopCounterVariable(loopCounterVariable.getText());
-        goToNextToken();
-        require(KEYWORD_ASSIGN);
-        Node from = parseExpr();
-        require(KEYWORD_TO);
-        Node to = parseExpr();
-        loopChildren.add(new VarNode(getList(from, to), loopCounterVariable));
-        require(KEYWORD_DO);
-        goToNextToken();
-        isLoopBlock(loopChildren);
-        return new LoopForNode(loopChildren, loopToken);
-    }
-
-    private Node parseWhile() throws SyntaxException {
-        ArrayList<Node> loopChildren = new ArrayList<>();
-        Token whileToken = currentToken();
-        loopChildren.add(getLogicalCondition());
-        goToNextToken();
-        require(KEYWORD_DO);
-        goToNextToken();
-        isLoopBlock(loopChildren);
-        return new LoopForNode(loopChildren, whileToken);
-    }
-
-    private int checkPresenceSymbol(String value) throws SyntaxException {
-        for (int i = 0; i < symTables.size(); i++) {
-            if (symTables.get(i).containsKey(value))
-                return i;
-        }
-        throw new SyntaxException(String.format("Error in pos %s:%s identifier not found \"%s\"",
-                currentToken().getPosX(), currentToken().getPosY(), value));
-    }
-
-    private void checkLoopCounterVariable(String value) throws SyntaxException {
-//        checkPresenceSymbol(value);
-//        if (!checkTypeMatch(value, VARIABLE))
-//            throw new SyntaxException(String.format("Error in pos %s:%s illegal counter variable",
-//                    currentToken().getPosX(), currentToken().getPosY()));
-    }
-
-    private void checkIfConditionVariable(String value) throws SyntaxException {
-//        checkPresenceSymbol(value);
-//        if (!checkTypeMatch(value, KEYWORD_INTEGER, KEYWORD_DOUBLE, KEYWORD_CONST))
-//            throw new SyntaxException(String.format("Error in pos %s:%s current identifier not allowed here",
-//                    currentToken().getPosX(), currentToken().getPosY()));
-    }
-
-    private int checkAlias(String value) throws SyntaxException {
-        int presenceSymbol = checkPresenceSymbol(value);
-        TokenValue tokenValue = symTables.get(presenceSymbol).get(value).getValue().get(0).getToken().getTokenValue();
-        if (tokenValue != KEYWORD_INTEGER && tokenValue != KEYWORD_DOUBLE && tokenValue != KEYWORD_CONST) {
-            throw new SyntaxException(String.format("Error in pos %s:%s current type not allowed here",
-                    currentToken().getPosX(), currentToken().getPosY()));
-        }
-        return presenceSymbol;
-    }
-
-    private boolean checkTypeMatch(int i, String key, TokenValue ... values) throws SyntaxException {
-        for (TokenValue value : values)
-            if (symTables.get(i).get(key).getKey() == value)
-                return true;
-        return false;
-    }
-
-    private void checkStatementSymbol(String value) throws SyntaxException {
-        int i = checkPresenceSymbol(value);
-        if (!checkTypeMatch(i, value, KEYWORD_DOUBLE, KEYWORD_INTEGER, KEYWORD_ARRAY))
-            throw new SyntaxException(String.format("Error in pos %s:%s current identifier \"%s\" not allowed here",
-                    currentToken().getPosX(), currentToken().getPosY(), currentToken().getText()));
-    }
-
-    private TokenValue checkFactorSymbol(String value) throws SyntaxException {
-        int i = checkPresenceSymbol(value);
-        if (!checkTypeMatch(i, value, KEYWORD_DOUBLE, KEYWORD_INTEGER, KEYWORD_CONST, KEYWORD_ARRAY)) {
-            //System.out.println(currentToken().getTokenType());
-            throw new SyntaxException(String.format("Error in pos %s:%s current type not allowed here",
-                    currentToken().getPosX(), currentToken().getPosY()));
-        }
-        // Здесь будем обрабатывать массивы и функции
-        if (checkTypeMatch(i, value, KEYWORD_ARRAY)) {
-            goToNextToken();
-            checkLengthBrackets(value);
-            goToNextToken();
-        }
-        return symTables.get(i).get(value).getKey();
-    }
-
-    private void setValuesToSymTable(Node value) {
-        String[] keys = new String[value.children.size()];
-        //System.out.println(value.children.get(0).getToken());
-        for (int i = 0; i < keys.length; i++) {
-            keys[i] = value.children.get(i).getToken().getText();
-            //System.out.println(keys[i]);
-        }
-        //System.out.println(value.children.get(0).children);
-        Node kek = new ArrayNode(value.children.get(0).children, value.token);
-        //System.out.println(kek.children.get(0));
-        for (String key : keys) {
-            symTables.get(currentSymTableIndex).computeIfPresent(key, (k, v) -> v = new javafx.util.Pair<>(v.getKey(), getList(kek)));
-        }
-            //symTables.get(currentSymTableIndex).put(key, new javafx.util.Pair<>(value.getToken().getTokenValue(), getList(value)));
-    }
-
-    private void setValueToSymTable(String key, Node statementNode) {
-        symTables.get(currentSymTableIndex).computeIfPresent(key, (k, v) -> v = new javafx.util.Pair<>(v.getKey(), getList(statementNode)));
-    }
-
-    private ArrayList<Node> parseBlock() throws SyntaxException {
-        ArrayList<Node> children = new ArrayList<>();
-        goToNextToken();
-        while (currentValue() != KEYWORD_END) {
-            switch (currentValue()) {
-                case VARIABLE:
-                    checkStatementSymbol(currentToken().getText());
-                    Node node = parseStatement();
-                    //setValueToSymTable();
-                    children.add(node);
-                    break;
-                case KEYWORD_FOR:
-                    children.add(parseFor());
-                    break;
-                case KEYWORD_WHILE:
-                    children.add(parseWhile());
-                    break;
-                case KEYWORD_IF:
-                    children.add(parseIf());
-                    continue;
-                default:
-                    require(VARIABLE);
-                    break;
-            }
-            goToNextToken();
-        }
-        return children;
-    }
-
-    private TokenValue getArrayTypeFromTable(String value) throws SyntaxException {
-        int i = checkPresenceSymbol(value);
-        return symTables.get(i).get(value).getValue().get(0).children.get(0).getToken().getTokenValue();
     }
 
     private void goToNextToken() { tokenizer.Next(); }
 
     private Token currentToken() { return tokenizer.getCurrentToken(); }
 
-    private boolean isSimpleType() { return currentValue() == KEYWORD_INTEGER || currentValue() == KEYWORD_DOUBLE; }
+    private TokenValue currentValue() { return tokenizer.getCurrentToken().getTokenValue(); }
 
-    private boolean isType() { return currentValue() == VARIABLE; }
+    // Type......
 
-    private boolean isArray() { return currentValue() == KEYWORD_ARRAY; }
+    private enum Category {
+        INT, DOUBLE, CHAR, ARRAY, RECORD, NIL, FUNCTION
+    }
 
-    private boolean isRecord() { return currentValue() == KEYWORD_RECORD; }
+    public class Type {
+        public Category category;
 
-    private void findSemicolon() throws SyntaxException {
-        goToNextToken();
-        require(SEP_SEMICOLON);
-        goToNextToken();
+        public Type(Category category) {
+            this.category = category;
+        }
+
+        public boolean isScalar() {
+            return category == Category.INT || category == Category.DOUBLE || category == Category.CHAR;
+        }
+
+        @Override
+        public String toString() {
+            return super.toString();
+        }
+    }
+
+    private Type double_;
+
+    private Type DoubleType() {
+        if (double_ == null)
+            double_ = new Type(Category.DOUBLE);
+        return double_;
+    }
+
+    private Type integer_;
+
+    private Type IntType() {
+        if (integer_ == null)
+            integer_ = new Type(Category.INT);
+        return integer_;
+    }
+
+    private Type char_;
+
+    private Type CharType() {
+        if (char_ == null)
+            char_ = new Type(Category.CHAR);
+        return char_;
+    }
+
+    private Type nil_;
+
+    private Type NIL() {
+        if (nil_ == null)
+            nil_ = new Type(Category.NIL);
+        return nil_;
+    }
+
+
+    private class ArrayType extends Type {
+        public Type elementType;
+        public ConstNode min;
+        public ConstNode max;
+
+        public ArrayType(Type elementType, ConstNode min, ConstNode max) {
+            super(Category.ARRAY);
+            this.elementType = elementType;
+            this.min = min;
+            this.max = max;
+        }
+    }
+
+    private class RecordType extends Type {
+        public SymTable fields;
+
+        public RecordType(SymTable fields) {
+            super(Category.RECORD);
+            this.fields = fields;
+        }
+    }
+
+    private class FunctionType extends Type {
+        public Type returnType;
+        public SymTable params;
+        public SymTable vars;
+        public Node compound_statement;
+
+        public FunctionType(SymTable params, SymTable vars, Type returnType, Node compound_statement) {
+            super(Category.FUNCTION);
+            this.params = params;
+            this.vars = vars;
+            this.returnType = returnType;
+            this.compound_statement = compound_statement;
+        }
+
+        @Override
+        public String toString() {
+            return super.toString();
+        }
+    }
+
+    // Sym Table......
+
+    private class SymTable {
+        private LinkedHashMap<String, Symbol> symTable;
+
+        private SymTable() {
+            symTable = new LinkedHashMap<>();
+        }
+
+        private void checkDuplicated(Token token) throws SyntaxException {
+            if (symTable.containsKey(token.getText()))
+                throw new SyntaxException(String.format("Error in pos %s:%s duplicate identifier %s ",
+                        token.getPosX(), token.getPosY(), token.getText()));
+        }
+
+        // Var
+        private void addVARSymbol(ArrayList<Node> symbols, Type type, Node value, boolean isPointerParam) throws SyntaxException {
+            for (Node symbol : symbols) {
+                checkDuplicated(symbol.getToken());
+                symTable.put(symbol.token.getText(), new Symbol(type, value, false, isPointerParam));
+            }
+        }
+        // Const
+        private void addCONSTSymbol(Token symbol, Type type, Node value) throws SyntaxException {
+            checkDuplicated(symbol);
+            symTable.put(symbol.getText(), new Symbol(type, value, true, false));
+        }
+        // Type
+        private void addTYPESymbol(Token symbol, Type type) throws SyntaxException {
+            checkDuplicated(symbol);
+            symTable.put(symbol.getText(), new Symbol(type));
+        }
+        // Alias
+        private Type getAliasType(Token token) throws SyntaxException {
+            if (symTable.containsKey(token.getText()))
+                return symTable.get(token.getText()).type;
+            throw new SyntaxException(String.format("Error in pos %s:%s identifier not found %s ",
+                    token.getPosX(), token.getPosY(), token.getText()));
+        }
+        // isConst
+        private boolean isConst(Token token) {
+            return symTable.get(token.getText()).isConst;
+        }
+        // isType
+        private boolean isType(Token token) {
+            return symTable.get(token.getText()).isType;
+        }
+
+        private Symbol getSymbol(Token token) throws SyntaxException {
+            for (SymTable table : tables)
+                if (table.symTable.containsKey(token.getText()))
+                    return table.symTable.get(token.getText());
+            throw new SyntaxException(String.format("Error in pos %s:%s identifier not found %s ",
+                    token.getPosX(), token.getPosY(), token.getText()));
+        }
+
+        private class Symbol {
+            Type type;
+            Node value;
+            boolean isType = false;
+            boolean isConst = false;
+            boolean isPointerParam = false;
+
+            private Symbol(Type type, Node value, boolean isConst, boolean isPointerParam) {
+                this.type = type;
+                this.value = value;
+                this.isConst = isConst;
+                this.isPointerParam = isPointerParam;
+            }
+
+            private Symbol(Type type) {
+                this.type = type;
+                this.isType = true;
+            }
+
+        }
+
+    }
+
+    // Node......
+
+    private enum NodeType {
+        CONST_INT, CONST_DOUBLE; // .... later
+
+        @Override
+        public String toString() {
+            return this == CONST_DOUBLE ? "const double" : "const integer";
+        }
+    }
+
+    private enum ResultType {
+        CONST; // .... .. .. .. later
+    }
+
+    public class Node {
+        ArrayList<Node> children;
+        Token token;
+//        ResultType resultType;
+//        NodeType type;
+        Type type;
+
+
+        private Node(ArrayList<Node> children, Token token) { this.children = children; this.token = token; }
+
+        private Node() {}
+
+        @Override
+        public String toString() {
+            return token.getText();
+        }
+
+        public void print() { print("", true); }
+
+        private void print(String prefix, boolean isTail) {
+            System.out.println(prefix + (isTail ? "└── " : "├── ") + token.getText());
+            if (children != null) {
+                for (int i = 0; i < children.size() - 1; i++) {
+                    children.get(i).print(prefix + (isTail ? "    " : "│   "), false);
+                }
+                if (children.size() > 0) {
+                    children.get(children.size() - 1)
+                            .print(prefix + (isTail ? "    " : "│   "), true);
+                }
+            }
+        }
+
+        public void setChildren(ArrayList<Node> children) { this.children = children; }
+
+        public Token getToken() { return token; }
+
+        //public TokenValue getResultType() { return resultType; }
+
+        //public void setResultType(TokenValue resultType) { this.resultType = resultType; }
+    }
+
+    public class VarNode extends Node {
+        public VarNode(Token token) { super(null, token); }
+        public VarNode(ArrayList<Node> children, Token token) { super(children, token); }
+    }
+
+    public class ConstNode extends Node {
+        private Object result;
+        public ConstNode(Type type, Object result) {
+            super(null, null);
+            this.type = type;
+            this.result = result;
+            //this.resultType = ResultType.CONST;
+        }
+        public ConstNode(Token token, Type type, Object result) {
+            super(null, token);
+            this.result = result;
+            this.type = type;
+        }
+    }
+
+    public class BinOpNode extends Node {
+        public BinOpNode(ArrayList<Node> children, Token token, Type type) {
+            super(children, token);
+            this.type = type;
+        }
+    }
+
+    public class UnaryMinusNode extends Node {
+        public UnaryMinusNode(ArrayList<Node> children, Token token) { super(children, token); }
+    }
+
+    public class NotNode extends Node {
+        public NotNode(ArrayList<Node> children, Token token) { super(children, token); }
+    }
+
+    public class MainNode extends Node {
+        public MainNode(ArrayList<Node> children, Token token) { super(children, token); }
+    }
+
+    public class ArrayNode extends Node {
+        public ArrayNode() {
+            super(new ArrayList<>(), null);
+        }
+    }
+
+    public class RecordNode extends Node {
+        public RecordNode() {
+            super(new ArrayList<>(), null);
+        }
+    }
+
+    public class BodyFunction extends Node {
+        public BodyFunction() { super(new ArrayList<>(), null); }
+    }
+
+    public class AssignmentStatement extends Node {
+        public AssignmentStatement(Node expression, Token token) { super(getList(expression), token);}
+    }
+
+    public class IfNode extends Node {
+        public IfNode() { super(getTmpLists(3), null); }
+
+        public Node getIf_() { return this.children.get(0); }
+
+        public Node getThen_() { return this.children.get(1); }
+
+        public Node getElse_() { return this.children.get(2); }
+
+        public void setIf_(Node if_) { this.children.set(0, if_); }
+
+        public void setThen_(Node then_) { this.children.set(1, then_); }
+
+        public void setElse_(Node else_) { this.children.set(2, else_); }
+    }
+
+    public class WhileNode extends Node {
+        public WhileNode() { super(getTmpLists(2), null); }
+
+        public Node getCondition() { return this.children.get(0); }
+
+        public Node getBody() { return this.children.get(1); }
+
+        public void setCondition(Node condition) { this.children.set(0, condition); }
+
+        public void setBody(Node body) { this.children.set(1, body); }
+    }
+
+    public class ForNode extends Node {
+        public SymTable.Symbol counter;
+        public boolean isDownTo = false;
+
+        public ForNode(SymTable.Symbol counter) { super(getTmpLists(3), null); this.counter = counter; }
+
+        public Node getFrom() { return this.children.get(0); }
+
+        public Node getTo() { return this.children.get(1); }
+
+        public Node getBody() { return this.children.get(2); }
+
+        public void setFrom(Node from) { this.children.set(0, from); }
+
+        public void setTo(Node to) { this.children.set(1, to); }
+
+        public void setBody(Node body) { this.children.set(2, body); }
+    }
+
+    private ArrayList<Node> getTmpLists(int size) {
+        ArrayList<Node> tmp = new ArrayList<>();
+        for (int i = 0; i < size; i++)
+            tmp.add(null);
+        return tmp;
     }
 }
