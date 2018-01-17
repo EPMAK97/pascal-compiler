@@ -4,7 +4,7 @@ parantheses ( ) indicate simple grouping of constructs; a vertical bar | indicat
 literal text in definitions is denoted using double quotation marks " ".
 http://www.fit.vutbr.cz/study/courses/APR/public/ebnf.html#identifier
 
-program = program_header, ";", block, ".";
+program = [program_header, ";"], block, ".";
 
 program_header = "program", identifier;
 
@@ -19,10 +19,11 @@ declaration_part = {
 
 type_declaration_part = "type", type_declaration, { type_declaration };
 
-constant_declaration_part = "const", (typed_constant_declaration | constant_declaration), {
-                                                                                            typed_constant_declaration
-                                                                                            | constant_declaration
-                                                                                        };
+constant_declaration_part = "const", (typed_constant_declaration | constant_declaration),
+    {
+        typed_constant_declaration
+        | constant_declaration
+    };
 
 variable_declaration_part = "var", variable_declaration, { variable_declaration };
 
@@ -45,7 +46,9 @@ simple_type =
     ordinal_type
     | real_type;
 
-ordinal_type = "Integer";
+ordinal_type =
+    "Char"
+    | "Integer";
 
 real_type = "Double";
 
@@ -53,7 +56,7 @@ structured_type =
     array_type
     | record_type;
 
-array_type = "array", { "[", range, "]", ["of", "array"] } | ("[", { range, "," }, "]" ), "of", type;
+array_type = "array", "[", range, { ",", range }, "]", "of", type;
 
 record_type = "record", [ field_list ], "end";
 
@@ -125,11 +128,7 @@ structured_statement =
     if_statement
     | repetitive_statement;
 
-if_statement = "if", expression, {
-		"then",
-		("begin", compound_statement) | statement,
-		[("else", statement) | ("else", begin", compound_statement) | ("else", "if", expression)]
-								};
+if_statement = "if", expression, "then", statement, [ "else", statement ];
 
 repetitive_statement =
     for_statement
