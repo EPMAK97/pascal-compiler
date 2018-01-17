@@ -451,7 +451,7 @@ public class Tokenizer {
             return;
         }
 
-        while (String.valueOf(c).matches("[a-zA-Z]|_|\'")) {
+        while (String.valueOf(c).matches("[a-zA-Z0-9]|_|\'")) {
             builder.append(c);
             c = reader.getChar();
             // we moved to a new line
@@ -460,7 +460,7 @@ public class Tokenizer {
                 reader.singleCharacterRollback();
                 break;
             }
-            if (!String.valueOf(c).matches("[a-zA-Z]|_|\'")) {
+            if (!String.valueOf(c).matches("[a-zA-Z0-9]|_|\'")) {
                 prepareWordToken(x, y);
                 reader.singleCharacterRollback();
             }
