@@ -1,0 +1,40 @@
+FUNCTION : test
+    result : NIL
+    function vars {
+    real : type DOUBLE
+    rec : type RECORD
+        a : array [1, 2] of INT
+    END
+    FUNCTION : f
+        result : RECORD
+        function params {
+        a : DOUBLE
+        b : DOUBLE
+        c : DOUBLE
+        }
+        function vars {
+        }
+        └── statements
+                     └── :=
+                          ├── []
+                          |    ├── .
+                          |    |   ├── Result
+                          |    |   └── a
+                          |    └── 1
+                          └── 10
+
+    a : INT
+    }
+    └── statements
+                 └── :=
+                      ├── a
+                      └── []
+                           ├── .
+                           |   ├── f
+                           |   |   └── params
+                           |   |            ├── 1.0
+                           |   |            ├── 10.1
+                           |   |            └── 3
+                           |   └── a
+                           └── 1
+

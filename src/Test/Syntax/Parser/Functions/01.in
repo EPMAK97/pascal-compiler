@@ -1,0 +1,13 @@
+program test;
+
+procedure p;
+begin
+end;
+
+function f : Integer;
+begin
+	Result := 1;
+end;
+
+begin
+end.

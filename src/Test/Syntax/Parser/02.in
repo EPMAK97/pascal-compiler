@@ -1,5 +1,0 @@
-var a, b : integer;
-    c : array [1..10] of integer;
-    d : array [1..10, 2..20] of double;
-Begin
-end.

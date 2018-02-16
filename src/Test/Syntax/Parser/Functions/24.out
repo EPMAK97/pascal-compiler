@@ -1,0 +1,25 @@
+FUNCTION : test
+    result : NIL
+    function vars {
+    real : type DOUBLE
+    FUNCTION : f
+        result : DOUBLE
+        function params {
+        a : INT
+        b : INT
+        }
+        function vars {
+        }
+        └── statements
+                     └── if
+                          ├── <
+                          |   ├── a
+                          |   └── b
+                          ├── exit
+                          |      └── a
+                          └── exit
+                                 └── b
+
+    }
+    └── statements
+

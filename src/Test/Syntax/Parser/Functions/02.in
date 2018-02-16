@@ -1,0 +1,13 @@
+program test;
+
+procedure p(a: Integer; const b, c: Double; var d, e, f: Char);
+begin
+end;
+
+function f(a, b, c: Integer; const d, e: Double; var f: Char) : Integer;
+begin
+    Result := 1;
+end;
+
+begin
+end.

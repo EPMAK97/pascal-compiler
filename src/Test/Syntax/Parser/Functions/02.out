@@ -1,0 +1,36 @@
+FUNCTION : test
+    result : NIL
+    function vars {
+    FUNCTION : p
+        result : NIL
+        function params {
+        a : INT
+        b : const DOUBLE
+        c : const DOUBLE
+        d : CHAR
+        e : CHAR
+        f : CHAR
+        }
+        function vars {
+        }
+        └── statements
+
+    FUNCTION : f
+        result : INT
+        function params {
+        a : INT
+        b : INT
+        c : INT
+        d : const DOUBLE
+        e : const DOUBLE
+        }
+        function vars {
+        }
+        └── statements
+                     └── :=
+                          ├── Result
+                          └── 1
+
+    }
+    └── statements
+

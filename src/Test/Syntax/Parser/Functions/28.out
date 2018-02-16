@@ -1,0 +1,30 @@
+FUNCTION : test
+    result : NIL
+    function vars {
+    arr : type array [1, 10] of INT
+    FUNCTION : f
+        result : ARRAY
+        function params {
+        a : array [1, 10] of INT
+        }
+        function vars {
+        b : INT
+
+        └── 10
+        }
+        └── statements
+                     ├── :=
+                     |    ├── []
+                     |    |    ├── a
+                     |    |    └── 0
+                     |    └── b
+                     └── exit
+                            └── a
+
+    a : array [1, 10] of INT
+    }
+    └── statements
+                 └── f
+                     └── params
+                              └── a
+

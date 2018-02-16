@@ -1,0 +1,40 @@
+FUNCTION : test
+    result : NIL
+    function vars {
+    real : type DOUBLE
+    rec : type RECORD
+        a : DOUBLE
+    END
+    FUNCTION : f
+        result : RECORD
+        function params {
+        a : DOUBLE
+        b : DOUBLE
+        c : DOUBLE
+        }
+        function vars {
+        }
+        └── statements
+                     └── :=
+                          ├── .
+                          |   ├── Result
+                          |   └── a
+                          └── /
+                              ├── +
+                              |   ├── a
+                              |   └── b
+                              └── c
+
+    r : RECORD
+        a : DOUBLE
+    END
+    }
+    └── statements
+                 └── :=
+                      ├── r
+                      └── f
+                          └── params
+                                   ├── 1.0
+                                   ├── 10.1
+                                   └── 3
+

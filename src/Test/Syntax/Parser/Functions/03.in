@@ -1,0 +1,13 @@
+program test;
+
+procedure p(a: Integer = 10 + 10);
+begin
+end;
+
+function f(a: Double = 10 * 10.1; const c: Char = 'c') : Double;
+begin
+	Result := 1.1;
+end;
+
+begin
+end.

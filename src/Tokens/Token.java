@@ -22,6 +22,16 @@ public class Token {
         this.value = value;
     }
 
+    public Token(Object result, Pair type) {
+        this.text = result.toString();
+        this.pair = type;
+    }
+
+    public Token(String text, Pair type) {
+        this.text = text;
+        this.pair = type;
+    }
+
     public String getValue() {
         return value == null ? "" : value;
     }

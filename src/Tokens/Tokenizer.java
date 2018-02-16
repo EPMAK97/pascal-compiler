@@ -3,7 +3,7 @@ package Tokens;
 import java.util.HashMap;
 
 public class Tokenizer {
-    private static Reader reader;
+    public static Reader reader;
     private static StringBuilder builder;
     private static HashMap<String, Pair> operators, separators, words;
     private State currentState = State.FREE;

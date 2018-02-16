@@ -1,7 +1,0 @@
-var x : integer;
-Begin
-    x := 1;
-    if x < 10 then begin
-        x := x * 2 + 4;
-    end
-end.

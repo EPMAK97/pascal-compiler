@@ -17,7 +17,7 @@ public class Main {
 //            System.setOut(new PrintStream(
 //                    new BufferedOutputStream(
 //                            new FileOutputStream(
-//                                    "/Users/ilyadonskoj/IdeaProjects/pascal_compiler/src/Test/Syntax/Parser/output.txt"))));
+//                                    "/Users/ilyadonskoj/IdeaProjects/pascal_compiler/src/Test/Syntax/Parser/Statements/output.txt"))));
 //        } catch (FileNotFoundException e) {
 //            e.printStackTrace();
 //        }
@@ -60,7 +60,8 @@ public class Main {
                     try {
                         Parser parser1 = new Parser(args[1]);
                         Parser.Type type = parser1.parse();
-                        System.out.println(type);
+                        System.out.println(type.toString());
+                        //type.print(null);
                         //node.print();
                     } catch (SyntaxException e) {
                         //e.printStackTrace();

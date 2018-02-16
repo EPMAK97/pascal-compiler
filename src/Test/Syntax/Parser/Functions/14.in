@@ -1,0 +1,15 @@
+program test;
+
+function f(a, b, c: Double) : Double;
+begin
+    Result := (a + b) / c;
+end;
+
+var
+
+    f: Char;
+    r: Double;
+
+begin
+    r := f(1.0, r, 3);
+end.
