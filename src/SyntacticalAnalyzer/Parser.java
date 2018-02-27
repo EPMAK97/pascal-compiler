@@ -6,13 +6,11 @@ import Generator.DataType;
 import Generator.RegisterType;
 import Tokens.*;
 
-import javax.script.ScriptEngine;
-import javax.script.ScriptEngineManager;
-import javax.script.ScriptException;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.util.*;
 
+import static Generator.CommandAsm.CommandType;
 import static Tokens.TokenValue.*;
 
 public class Parser {
@@ -25,6 +23,7 @@ public class Parser {
     private static boolean exitFound = false; // Exit in function
 
     static {
+        // put all tokens from Tokenizer in a hash
         hashTokens = new HashMap<>();
         HashMap<String, Tokens.Pair> operators  = Tokenizer.getOperators();
         HashMap<String, Tokens.Pair> separators = Tokenizer.getSeparators();
@@ -48,43 +47,40 @@ public class Parser {
     }
 
 
-    private Node parseLogicalExpression() throws SyntaxException, ScriptException  {
+    private Node parseExpression() throws SyntaxException {
         Node e = parseExpr();
         Token t = currentToken();
         while (t.getTokenValue() != KEYWORD_EOF && isLogical(t.getTokenValue())) {
             goToNextToken();
-            Node parseExprNode = parseExpr();
-            e = calculateConstants(e, parseExprNode, t);
+            e = calculateConstants(e, parseExpr(), t);
             t = currentToken();
         }
         return e;
     }
 
-    private Node parseExpr() throws SyntaxException, ScriptException {
+    private Node parseExpr() throws SyntaxException {
         Node e = parseTerm();
         Token t = currentToken(); // +
         while (t.getTokenValue() != KEYWORD_EOF && isExpr(t.getTokenValue())) {
             goToNextToken();
-            Node parseTermNode = parseTerm();
-            e = calculateConstants(e, parseTermNode, t);
+            e = calculateConstants(e, parseTerm(), t);
             t = currentToken();
         }
         return e;
     }
 
-    private Node parseTerm() throws SyntaxException, ScriptException {
+    private Node parseTerm() throws SyntaxException {
         Node e = parseFactor();
         Token t = currentToken();
         while (t.getTokenValue() != KEYWORD_EOF && (isTerm(t.getTokenValue()))) {
             goToNextToken();
-            Node parseFactorNode = parseFactor();
-            e = calculateConstants(e, parseFactorNode, t);
+            e = calculateConstants(e, parseFactor(), t);
             t = currentToken();
         }
         return e;
     }
     // a-;
-    private Node parseFactor() throws SyntaxException, ScriptException {
+    private Node parseFactor() throws SyntaxException {
         Token currentToken = currentToken();
         goToNextToken();
         switch (currentToken.getTokenValue()) {
@@ -93,11 +89,21 @@ public class Parser {
             case KEYWORD_NOT:
                 return new NotNode(getList(parseFactor()), currentToken);
             case VARIABLE: {
+//                switch (getTypeFromTable(currentToken).category) {
+//                    case ARRAY:
+//                        return indexedVariable(new IndexNode(new ArrayList<>(), getTypeFromTable(currentToken)));
+//                    case RECORD:
+//                        return field_access(new RecordNode(getTypeFromTable(currentToken)));
+//                    case FUNCTION:
+//                        return parseFunctionCall(new FunctionCallNode(currentToken, ((FunctionType)getTypeFromTable(currentToken)).returnType));
+//                    default:
+//                        return new VarNode(currentToken, getTypeFromTable(currentToken));
+//                }
                 switch (getTypeFromTable(currentToken).category) {
                     case ARRAY:
-                        return indexed_variable(new VarNode(currentToken, getTypeFromTable(currentToken)));
+                        return indexedVariable(new VarNode(currentToken, getTypeFromTable(currentToken)));
                     case RECORD:
-                        return field_access(new VarNode(currentToken, getTypeFromTable(currentToken)));
+                        return fieldAccess(new VarNode(currentToken, getTypeFromTable(currentToken)));
                     case FUNCTION:
                         return parseFunctionCall(new VarNode(currentToken, ((FunctionType)getTypeFromTable(currentToken)).returnType));
                     default:
@@ -115,13 +121,13 @@ public class Parser {
             case CONST_STRING:
                 return new ConstNode(currentToken, CharType(), currentToken.getText());
             case SEP_BRACKETS_LEFT:
-                Node e = parseLogicalExpression();
+                Node e = parseExpression();
                 requireFollowingToken(SEP_BRACKETS_RIGHT);
                 return e;
             default:
-                throw new SyntaxException(String.format("Error in pos %s:%s expected identifier, constant or expression ",
-                        currentToken().getPosX(), currentToken().getPosY()));
+                throwSyntaxException("Error in pos %s:%s expected identifier, constant or expression", currentToken());
         }
+        return null;
     }
 
     private boolean isLogical(TokenValue tv) {
@@ -160,64 +166,38 @@ public class Parser {
                 tv == KEYWORD_XOR;
     }
 
-    private String castValueToOutput(TokenValue value) {
-        switch (value) {
-            case CONST_DOUBLE:      return "double";
-            case CONST_INTEGER:     return "integer";
-            case KEYWORD_INTEGER:   return "integer";
-            case KEYWORD_DOUBLE:    return "double";
-            case KEYWORD_TYPE:      return "type";
-            case KEYWORD_DIV:       return "div";
-            case KEYWORD_MOD:       return "mod";
-            case KEYWORD_SHL:       return "shl";
-            case KEYWORD_SHR:       return "shr";
-            case KEYWORD_XOR:       return "xor";
-            default:                return "";
-        }
-    }
-
     private Type getTypeForOperation(Type left, Type right, Token operation) throws SyntaxException {
         if (operation == null)
             throw new SyntaxException(String.format("Error in pos %s:%s unknown operation",
                     currentToken().getPosX(), currentToken().getPosY()));
         if (!left.isScalar() || !right.isScalar())
-            throw new SyntaxException(String.format("Error in pos %s:%s unsupported operands types \"%s\", \"%s\" for %s",
-                    currentToken().getPosX(), currentToken().getPosY(), left.category, right.category, operation.getText()));
+            throwSyntaxException("Error in pos %s:%s unsupported operands types \"%s\", \"%s\" for \"%s\"",
+                currentToken(), left.category.toString(), right.category.toString(), operation.getText());
         if (isLogical(operation.getTokenValue()))
             return IntType();
         if (left == CharType() || right == CharType())
-            throw new SyntaxException(String.format("Error in pos %s:%s unsupported operands types \"%s\", \"%s\" for %s",
-                    currentToken().getPosX(), currentToken().getPosY(), left.category, right.category, operation.getText()));
+            throwSyntaxException("Error in pos %s:%s unsupported operands types \"%s\", \"%s\" for \"%s\"",
+                currentToken(), left.category.toString(), right.category.toString(), operation.getText());
         if (isIntOnly(operation.getTokenValue()))
             if (left != IntType() || right != IntType())
-                throw new SyntaxException(String.format("Error in pos %s:%s unsupported operands types \"%s\", \"%s\" for %s",
-                        currentToken().getPosX(), currentToken().getPosY(), left.category, right.category, operation.getText()));
+                throwSyntaxException("Error in pos %s:%s unsupported operands types \"%s\", \"%s\" for \"%s\"",
+                        currentToken(), left.category.toString(), right.category.toString(), operation.getText());
         Type resultType = left;
         if (left == IntType() && right == DoubleType() || left == DoubleType() && right == IntType())
             resultType = DoubleType();
         else if (left != right)
-            throw new SyntaxException(String.format("Error in pos %s:%s incompatible types",
-                    currentToken().getPosX(), currentToken().getPosY()));
+            throwSyntaxException("Error in pos %s:%s incompatible types", currentToken());
         if (operation.getTokenValue() == OP_DIVISION)
             return DoubleType();
-        return resultType;
+        return resultType;    }
+
+    private Double getValueForEval(Node left) {
+        return left.type  == char_ ? (int)left.token.getText().charAt(0) : left.type == DoubleType() ?
+                Double.parseDouble(left.token.getText()) : Integer.parseInt(left.token.getText());
     }
 
-    private boolean isCastOnly(Token operation) {
-        return  operation.getTokenValue() != OP_PLUS  &&
-                operation.getTokenValue() != OP_MINUS &&
-                operation.getTokenValue() != OP_MULT  &&
-                operation.getTokenValue() != OP_DIVISION;
-    }
-
-    private Object getResultLogicOperation(Node left, Node right, Token operation) {
-        Double leftValue;
-        Double rightValue;
-        leftValue = left.type == char_ ? (int)left.token.getText().charAt(0) :
-                Double.parseDouble(left.token.getText()); // TODO написать ноду каста если один из операндов дабл
-        rightValue = right.type == char_ ? (int)right.token.getText().charAt(0) :
-                Double.parseDouble(right.token.getText()); // TODO написать ноду каста
-        switch (operation.getTokenValue()) {
+    private Object evalOperation(Double leftValue, Double rightValue, TokenValue operation) {
+        switch (operation) {
             case OP_GREATER:
                 return leftValue > rightValue ? 1 : 0;
             case OP_LESS:
@@ -230,32 +210,58 @@ public class Parser {
                 return leftValue.equals(rightValue) ? 1 : 0;
             case OP_NOT_EQUAL:
                 return !leftValue.equals(rightValue) ? 1 : 0;
-            default: return null;
-        }
-    }
-
-    private String getJavaStyleOperation(Token operation) {
-        switch (operation.getTokenValue()) {
-            case KEYWORD_AND:
-                return "&";
-            case KEYWORD_OR:
-                return "|";
             case KEYWORD_SHL:
-                return "<<";
+                return leftValue.intValue() << rightValue.intValue();
             case KEYWORD_SHR:
-                return ">>";
+                return leftValue.intValue() >> rightValue.intValue();
+            case KEYWORD_XOR:
+                return leftValue.intValue() ^ rightValue.intValue();
             case KEYWORD_DIV:
-                return "/";
+                return Math.round(leftValue / rightValue);
             case KEYWORD_MOD:
-                return "%";
-            default: return null; // never
+                return leftValue.intValue() % rightValue.intValue();
+            case KEYWORD_AND:
+                return leftValue.intValue() & rightValue.intValue();
+            case KEYWORD_OR:
+                return leftValue.intValue() | rightValue.intValue();
+            case OP_MULT:
+                return leftValue * rightValue;
+            case OP_DIVISION:
+                return leftValue / rightValue;
+            case OP_PLUS:
+                return leftValue + rightValue;
+            case OP_MINUS:
+                return leftValue - rightValue;
+            default:
+                return null; //:-)
         }
     }
 
-    private Node calculateConstants(Node left, Node right, Token operation) throws ScriptException {
+
+    private Object getResultForOperation(Node left, Node right, Token operation, Type operationType) {
+        Double leftValue = getValueForEval(left);
+        Double rightValue = getValueForEval(right);
+        Object result = evalOperation(leftValue, rightValue, operation.getTokenValue());
+        if (operationType.category == Category.INT || operationType.category == Category.CHAR) //{
+            return (int)((Double.parseDouble(result.toString())));
+        return result;
+    }
+
+    private Node cast(Node left, Type rightType, Type operationType, Token operation) {
         Type leftType = left.type;
-        Type rightType = right.type;
-        Type operationType = getTypeForOperation(leftType, rightType, operation);
+        if (!isLogical(operation.getTokenValue()) && leftType.category != operationType.category)
+                return new CastNode(left, leftType, operationType, left.token);
+        if (rightType.category == Category.DOUBLE && leftType.category != Category.DOUBLE)
+                return new CastNode(left, leftType, DoubleType(), left.token);
+        if (rightType.category == Category.CHAR && leftType.category != Category.CHAR)
+                return new CastNode(left, leftType, DoubleType(), left.token);
+        return left;
+    }
+
+    private Node calculateConstants(Node left, Node right, Token operation) throws SyntaxException {
+        Type operationType = getTypeForOperation(left.type, right.type, operation);
+        left  = cast(left, right.type, operationType, operation);
+        right = cast(right, left.type, operationType, operation);
         ConstNode l = null;
         ConstNode r = null;
         if (left instanceof ConstNode)
@@ -264,23 +270,16 @@ public class Parser {
             r = (ConstNode)right;
         if (l == null || r == null)
             return new BinOpNode(getList(left, right), operation, operationType);
-        String leftOperand = l.token == null ? l.result.toString() : left.token.getText();
-        String expressionToString = leftOperand + operation.getText() + right.token.getText();
-        if (isCastOnly(operation))
-            if (isLogical(operation.getTokenValue()))
-                return new ConstNode(operationType, getResultLogicOperation(left, right, operation));
-            else
-                expressionToString = leftOperand + getJavaStyleOperation(operation) + right.token.getText();
-        if (operation.getTokenValue() == KEYWORD_DIV) expressionToString += "|0"; // :)
-        ScriptEngineManager manager = new ScriptEngineManager();
-        ScriptEngine engine = manager.getEngineByName("js");
-        Object result = engine.eval(expressionToString);
-        return new ConstNode(operationType, result);
+        return new ConstNode(operationType, getResultForOperation(left, right, operation, operationType));
     }
 
-    private ArrayList<Node> getList(Node ... nodes) {
-        return new ArrayList<>(Arrays.asList(nodes));
+    private void throwSyntaxException(String textException, Token current, String ... substitutions) throws SyntaxException {
+        ArrayList<String> list = new ArrayList<String>(Arrays.asList(substitutions));
+        list.add(0, current.getPosX()); list.add(1, current.getPosY());
+        throw new SyntaxException(String.format(textException, list.toArray()));
     }
+
+    private ArrayList<Node> getList(Node ... nodes) { return new ArrayList<>(Arrays.asList(nodes)); }
 
     private void require(TokenValue ... tokenValues) throws SyntaxException {
         StringJoiner joiner = new StringJoiner(" or ");
@@ -293,7 +292,6 @@ public class Parser {
                 joiner.add("const double");
             joiner.add(hashTokens.get(value));
         }
-
         throw new SyntaxException(String.format("Error in pos %s:%s required %s but found %s",
                 currentToken().getPosX(), currentToken().getPosY(),
                 joiner.toString(), currentToken().getText()));
@@ -308,65 +306,60 @@ public class Parser {
         goToNextToken();
     }
 
-    private Node parseFunctionCall(Node var) throws ScriptException {
+    private Node parseFunctionCall(Node var) throws SyntaxException {
         FunctionType type = (FunctionType)getTypeFromTable(var.token);
-        if (type.params.symTable.size() == 0)
-            return var;
-        //goToNextToken();
         var.children.add(parseParameterList(type));
         switch (type.returnType.category) {
             case ARRAY: {
                 var.type = type.returnType;
-                Node indexedVariable = indexed_variable(var);
-                var.type = type; // TODO может это не надо делать? этот SWAP
-                requireFollowingToken(SEP_BRACKETS_RIGHT);
+                Node indexedVariable = indexedVariable(var);
+                var.type = type;
                 return indexedVariable;
             }
             case RECORD:
-                requireFollowingToken(SEP_BRACKETS_RIGHT);
                 var.type = type.returnType;
-                if (currentValue() != SEP_DOT)
-                    return var;
-                Node fieldAccess = field_access(var);
-                var.type = type; // TODO может это не надо делать? этот SWAP
-                goToNextToken();
+                Node fieldAccess = fieldAccess(var);
+                var.type = type;
                 return fieldAccess;
             default:
-                //goToNextToken();
-                requireFollowingToken(SEP_BRACKETS_RIGHT);
                 return var;
         }
     }
 
-    private Node parseParameterList(FunctionType type) throws ScriptException {
-        requireFollowingToken(SEP_BRACKETS_LEFT);
+    private Node parseParameterList(FunctionType type) throws SyntaxException {
         Node result = new ParamListNode(type.returnType);
         ArrayList<Node> arguments = new ArrayList<>();
-        parseExpressionList(arguments);
-        int i = 0;
+        if (type.params.symTable.size() != 0 || currentValue() == SEP_BRACKETS_LEFT)
+            parseExpressionList(arguments, false);
+        if (arguments.size() != type.params.symTable.size())
+            throwSyntaxException("Error in pos %s:%s illegal parameters count", currentToken());
+        int index = 0;
         for (Map.Entry<String, SymTable.Symbol> entry : type.params.symTable.entrySet()) {
-            if (i == type.params.symTable.size() - 1 && i == arguments.size())
-                break;
-            if (i == type.params.symTable.size() || i == arguments.size())
-                throw new SyntaxException(String.format("Error in pos %s:%s illegal parameters count",
-                        currentToken().getPosX(), currentToken().getPosY()));
-            requireTypesCompatibility(entry.getValue().type, arguments.get(i).type, false);
-            result.children.add(arguments.get(i));
-            i++;
+            requireTypesCompatibility(entry.getValue().type, arguments.get(index).type, false);
+            if (entry.getValue().type.category != arguments.get(index).type.category)
+                result.children.add(new CastNode(arguments.get(index), arguments.get(index).type, entry.getValue().type, arguments.get(index).token));
+            else
+                result.children.add(arguments.get(index));
+            index++;
         }
+
         return result;
     }
 
-    private void parseExpressionList(ArrayList<Node> nodes) throws ScriptException {
+    private void parseExpressionList(ArrayList<Node> nodes, boolean isRead) throws SyntaxException {
+        requireFollowingToken(SEP_BRACKETS_LEFT);
         while (currentToken().getTokenValue() != SEP_BRACKETS_RIGHT) {
-            nodes.add(parseLogicalExpression());
-            if (currentToken().getTokenValue() == SEP_BRACKETS_RIGHT || currentValue() == SEP_SEMICOLON)
+            nodes.add(parseExpression());
+            if (isRead && getSymbolFromTable(nodes.get(nodes.size() - 1).token).isConst)
+                throwSyntaxException("Error in pos %s:%s can't read to const variable", nodes.get(nodes.size() - 1).token);
+            if (currentToken().getTokenValue() == SEP_BRACKETS_RIGHT)
                 break;
             requireFollowingToken(SEP_COMMA);
         }
+        goToNextToken();
     }
 
-    private Node castVariables(Token token) throws ScriptException {
+    private Node castVariables(Token token) throws SyntaxException {
         requireFollowingToken(SEP_BRACKETS_LEFT);
         Node expr = parseExpr();
         Type castType = null;
@@ -381,25 +374,30 @@ public class Parser {
                 castType = CharType();
                 break;
             default:
-                throw new SyntaxException(String.format("Error in pos %s:%s can't convert from %s to %s",
-                        token.getPosX(), token.getPosY(), expr.type.category, token.getText()));
+                throwSyntaxException("Error in pos %s:%s can't convert from %s to %s", token,
+                        expr.type.category.toString(), token.getText());
+                //throw new SyntaxException(String.format("Error in pos %s:%s can't convert from %s to %s",
+                  //      token.getPosX(), token.getPosY(), expr.type.category, token.getText()));
         }
         if (castType.category == expr.type.category)
-            throw new SyntaxException(String.format("Error in pos %s:%s can't convert from %s to %s",
-                    token.getPosX(), token.getPosY(), expr.type.category, castType.category));
+            throwSyntaxException("Error in pos %s:%s can't convert from %s to %s", token,
+                    expr.type.category.toString(), castType.category.toString());
+            //throw new SyntaxException(String.format("Error in pos %s:%s can't convert from %s to %s",
+              //      token.getPosX(), token.getPosY(), expr.type.category, castType.category));
         requireFollowingToken(SEP_BRACKETS_RIGHT);
         return new CastNode(expr, expr.type, castType, token);
     }
 
-    public Type parse() throws ScriptException {
+    public Type parse() throws SyntaxException {
         goToNextToken();
-        String name = "MAIN";
+        String name = "@MAIN";
         if (currentValue() == KEYWORD_PROGRAM)
             name = parseProgram();
         tables = new Stack<>();
         tables.push(new SymTable());
-        declaration_part();
-        return new FunctionType(null, tables.peek(), NIL(), compound_statement(), name);
+        declarationPart();
+        tables.peek().calculateOffsets();
+        return new FunctionType(new SymTable(), tables.peek(), NIL(), compoundStatement(), name);
     }
 
     private String parseProgram() throws SyntaxException {
@@ -413,14 +411,14 @@ public class Parser {
     }
 
 
-    private void declaration_part() throws ScriptException { // declaration_part
+    private void declarationPart() throws SyntaxException { // declaration_part
         while (true) {
             switch (currentValue()) {
                 case KEYWORD_TYPE:
                     goToNextToken();
                     requireCurrentToken(VARIABLE);
                     while (currentValue() == VARIABLE) {
-                        type_declaration(); // type_declaration
+                        typeDeclaration(); // type_declaration
                         requireFollowingToken(SEP_SEMICOLON);
                     }
                     break;
@@ -428,7 +426,7 @@ public class Parser {
                     goToNextToken();
                     requireCurrentToken(VARIABLE);
                     while (currentValue() == VARIABLE) {
-                        variable_declaration(); // variable_declaration
+                        variableDeclaration(); // variable_declaration
                         requireFollowingToken(SEP_SEMICOLON);
                     }
                     break;
@@ -436,20 +434,20 @@ public class Parser {
                     goToNextToken();
                     requireCurrentToken(VARIABLE);
                     while (currentValue() == VARIABLE) {
-                        const_declaration(); // const_declaration
+                        constDeclaration(); // const_declaration
                         requireFollowingToken(SEP_SEMICOLON);
                     }
                     break;
                 case KEYWORD_FUNCTION:
                     goToNextToken();
                     requireCurrentToken(VARIABLE);
-                    function_declaration(false); // function_declaration
+                    functionDeclaration(false); // function_declaration
                     requireFollowingToken(SEP_SEMICOLON);
                     break;
                 case KEYWORD_PROCEDURE:
                     goToNextToken();
                     requireCurrentToken(VARIABLE);
-                    function_declaration(true); // procedure_declaration
+                    functionDeclaration(true); // procedure_declaration
                     requireFollowingToken(SEP_SEMICOLON);
                     break;
                 default:
@@ -459,7 +457,7 @@ public class Parser {
     }
 
 
-    private ArrayList<Node> identifier_list() throws SyntaxException { // identifier_list
+    private ArrayList<Node> identifierList() throws SyntaxException { // identifier_list
         ArrayList<Node> newVariables = new ArrayList<>();
         while (true) {
             newVariables.add(new VarNode(currentToken()));
@@ -473,38 +471,39 @@ public class Parser {
         return newVariables;
     }
 
-    private Type parseType() throws ScriptException { // type
+    private Type parseType() throws SyntaxException { // type
         Token currentToken = currentToken();
         goToNextToken();
-        Type type;
+        Type type = null;
         switch (currentToken.getTokenValue()) {
             case VARIABLE:
-                type = type_alias(currentToken);
+                type = typeAlias(currentToken);
                 break;
             case KEYWORD_ARRAY:
-                return array_type();
+                return arrayType();
             case KEYWORD_RECORD:
-                return record_type();
+                return recordType();
             case KEYWORD_INTEGER:
             case KEYWORD_DOUBLE:
             case KEYWORD_CHARACTER:
-                type = simple_type(currentToken);
+                type = simpleType(currentToken);
          //       goToNextToken();
                 break;
             default:
-                throw new SyntaxException(String.format("Error in pos %s:%s expected type but got %s",
-                        currentToken.getPosX(), currentToken.getPosY(), currentToken.getText()));
+                throwSyntaxException("Error in pos %s:%s expected type but got %s", currentToken, currentToken.getText());
+                //throw new SyntaxException(String.format("Error in pos %s:%s expected type but got %s",
+                  //      currentToken.getPosX(), currentToken.getPosY(), currentToken.getText()));
         }
 //        requireFollowingToken(SEP_SEMICOLON, OP_EQUAL);
         return type;
     }
 
-    private Type type_alias(Token token) throws ScriptException {
+    private Type typeAlias(Token token) throws SyntaxException {
         //goToNextToken();
         return getTypeFromTable(token);
     }
 
-    private Type simple_type(Token token) throws SyntaxException { // simple_type
+    private Type simpleType(Token token) throws SyntaxException { // simple_type
         //goToNextToken();
         if (token.getTokenValue() == KEYWORD_INTEGER)
             return IntType();
@@ -513,7 +512,7 @@ public class Parser {
         return CharType();
     }
 
-    private Type array_type() throws ScriptException { // array_type
+    private Type arrayType() throws SyntaxException { // array_type
         requireFollowingToken(SEP_BRACKETS_SQUARE_LEFT);
         Node min = parseExpr();
         if (min.type != integer_) // TODO make function check node Type
@@ -529,21 +528,21 @@ public class Parser {
         return new ArrayType(parseType(), (ConstNode)min, (ConstNode)max);
     }
 
-    private Type record_type() throws ScriptException {
+    private Type recordType() throws SyntaxException {
         SymTable fields = new SymTable();
         while (currentValue() == VARIABLE) { // { identifier_list, ":", type, ";" };
-            fields.addVARSymbol(identifier_list(), parseType(), null, false); // May be not....
+            fields.addVARSymbol(identifierList(), parseType(), null, false); // May be not....
             requireFollowingToken(SEP_SEMICOLON);
         }
         requireFollowingToken(KEYWORD_END);
         return new RecordType(fields);
     }
 
-    private Node typed_constant(Type type) throws ScriptException { // typed_constant
+    private Node typedConstant(Type type) throws SyntaxException { // typed_constant
         Node typedConstant;
         switch (type.category) {
             case RECORD:
-                typedConstant = new RecordNode();
+                typedConstant = new RecordNode(null);
                 requireFollowingToken(SEP_BRACKETS_LEFT);
                 RecordType recordType = (RecordType)type;
                 for (Map.Entry<String, SymTable.Symbol> pair : recordType.fields.symTable.entrySet()) {
@@ -557,7 +556,7 @@ public class Parser {
                                 String.format("Error in pos %s:%s unknown record field identifier %s ",
                                         variable.getPosX(), variable.getPosY(), variable.getText()));
                     requireFollowingToken(OP_COLON);
-                    typedConstant.children.add(typed_constant(pair.getValue().type));
+                    typedConstant.children.add(typedConstant(pair.getValue().type));
                     requireFollowingToken(SEP_SEMICOLON);
                 }
                 requireFollowingToken(SEP_BRACKETS_RIGHT);
@@ -570,7 +569,7 @@ public class Parser {
                 requireFollowingToken(SEP_BRACKETS_LEFT);
                 typedConstant = new ArrayNode();
                 for (int i = min; i <= max; i++) {
-                    typedConstant.children.add(typed_constant(element));
+                    typedConstant.children.add(typedConstant(element));
                     if (i != max) {
                         requireFollowingToken(SEP_COMMA);
                     }
@@ -580,9 +579,12 @@ public class Parser {
             case INT:
             case DOUBLE:
             case CHAR:
-                typedConstant = parseLogicalExpression();
+                typedConstant = parseExpression();
                 requireTypesCompatibility(type, typedConstant.type, false);
-                return typedConstant;
+                if (type.category != typedConstant.type.category)
+                    return new CastNode(typedConstant, typedConstant.type, type, typedConstant.token);
+                else
+                    return typedConstant;
             default:
                 throw new SyntaxException(String.format("Error in pos %s:%s expected array, record, integer, char or double " +
                                 "in typed constant but found %s ",
@@ -598,30 +600,29 @@ public class Parser {
                 || left == DoubleType() && right == IntType()
                 || allowedLeftInt && left == IntType() && right == DoubleType())
             return;
-        throw new SyntaxException(String.format("Error in pos %s:%s incompatible types: got %s expected %s",
-                currentToken().getPosX(), currentToken().getPosY(), right.category, left.category));
+        throwSyntaxException("Error in pos %s:%s incompatible types: got %s expected %s", currentToken(),
+            right.category.toString(), left.category.toString());
     }
 
-    private Node parseConstValue(ArrayList<Node> identifiers, Type type) throws ScriptException {
+    private Node parseConstValue(ArrayList<Node> identifiers, Type type) throws SyntaxException {
         Node value = null;
         if (currentValue() == OP_EQUAL) {
             goToNextToken();
             if (identifiers.size() > 1)
-                throw new SyntaxException(String.format("Error in pos %s:%s only one variable can be initialized",
-                        currentToken().getPosX(), currentToken().getPosY()));
-            value = typed_constant(type);
+                throwSyntaxException("Error in pos %s:%s only one variable can be initialized", currentToken());
+            value = typedConstant(type);
         }
         return value;
     }
 
-    private void variable_declaration() throws ScriptException { // type_declaration_part,  variable_declaration_part
-        ArrayList<Node> identifiers = identifier_list();
+    private void variableDeclaration() throws SyntaxException { // type_declaration_part,  variable_declaration_part
+        ArrayList<Node> identifiers = identifierList();
         Type type = parseType();
         Node value = parseConstValue(identifiers, type);
         tables.peek().addVARSymbol(identifiers, type, value, false);
     }
 
-    private void type_declaration() throws ScriptException { // type_declaration = identifier, "=", type, ";";
+    private void typeDeclaration() throws SyntaxException { // type_declaration = identifier, "=", type, ";";
         Token identifier = currentToken();
         goToNextToken();
         requireFollowingToken(OP_EQUAL);
@@ -629,13 +630,13 @@ public class Parser {
         tables.peek().addTYPESymbol(identifier, type);
     }
 
-    private void const_declaration() throws ScriptException { // typed_constant_declaration | constant_declaration
+    private void constDeclaration() throws SyntaxException { // typed_constant_declaration | constant_declaration
         Token identifier = currentToken();
         goToNextToken();
         switch (currentValue()) {
             case OP_EQUAL: {
                 goToNextToken();
-                Node expression = parseLogicalExpression();
+                Node expression = parseExpression();
                 if (!(expression instanceof ConstNode))
                     throw new SyntaxException(String.format("Error in pos %s:%s illegal expression ",
                             currentToken().getPosX(), currentToken().getPosY()));
@@ -646,17 +647,16 @@ public class Parser {
                 goToNextToken();
                 Type type = parseType();
                 requireFollowingToken(OP_EQUAL);
-                Node typed_constant = typed_constant(type);
-                tables.peek().addCONSTSymbol(identifier, type, typed_constant);
+                Node typedConstant = typedConstant(type);
+                tables.peek().addCONSTSymbol(identifier, type, typedConstant);
                 return;
                 }
             default:
-                throw new SyntaxException(String.format("Error in pos %s:%s expected colon or equal",
-                        currentToken().getPosX(), currentToken().getPosY()));
+                throwSyntaxException("Error in pos %s:%s expected colon or equal", currentToken());
         }
     }
 
-    private void function_declaration(boolean isProcedure) throws ScriptException { // function_header, ";", block, ";";
+    private void functionDeclaration(boolean isProcedure) throws SyntaxException { // function_header, ";", block, ";";
         exitFound = false;
         Token functionIdentifier = currentToken();
         goToNextToken();
@@ -664,52 +664,45 @@ public class Parser {
         tables.push(new SymTable()); // params
         if (currentValue() == SEP_BRACKETS_LEFT) {
             goToNextToken();
-            while (currentValue() != SEP_BRACKETS_RIGHT) {
-                requireCurrentToken(VARIABLE, KEYWORD_VAR, KEYWORD_CONST);
+            do {
+                requireCurrentToken(VARIABLE, KEYWORD_VAR, KEYWORD_CONST, SEP_BRACKETS_RIGHT);
                 switch (currentValue()) {
                     case VARIABLE: {
-                        ArrayList<Node> identifiers = identifier_list();
+                        ArrayList<Node> identifiers = identifierList();
                         Type type = parseType();
                         Node value = parseConstValue(identifiers, type);
                         tables.peek().addVARSymbol(identifiers, type, value, false);
                         requireCurrentToken(SEP_BRACKETS_RIGHT, SEP_SEMICOLON);
-                        if (currentValue() == SEP_BRACKETS_RIGHT) break;
-                        goToNextToken();
                         break;
                     }
                     case KEYWORD_VAR: {
                         goToNextToken();
                         requireCurrentToken(VARIABLE);
-                        ArrayList<Node> identifiers = identifier_list();
+                        ArrayList<Node> identifiers = identifierList();
                         Type type = parseType();
                         tables.peek().addVARSymbol(identifiers, type, null, true);
                         requireCurrentToken(SEP_BRACKETS_RIGHT, SEP_SEMICOLON, OP_EQUAL);
                         if (currentValue() == OP_EQUAL)
-                            throw new SyntaxException(String.format(
-                                "Error in pos %s:%s can't initialize value passed by reference",
-                                    currentToken().getPosX(), currentToken().getPosY()));
-                        if (currentValue() == SEP_BRACKETS_RIGHT) break;
-                        goToNextToken();
+                            throwSyntaxException("Error in pos %s:%s can't initialize value passed by reference", currentToken());
                         break;
                     }
                     case KEYWORD_CONST: {
                         goToNextToken();
                         requireCurrentToken(VARIABLE);
-                        ArrayList<Node> identifiers = identifier_list();
+                        ArrayList<Node> identifiers = identifierList();
                         Type type = parseType();
                         requireCurrentToken(SEP_BRACKETS_RIGHT, SEP_SEMICOLON, OP_EQUAL);
-                        Node typed_constant = null;
+                        Node typedConstant = null;
                         if (currentValue() == OP_EQUAL) {
                             goToNextToken();
-                            typed_constant = typed_constant(type);
+                            typedConstant = typedConstant(type);
                         }
-                        tables.peek().addCONSTSymbol(identifiers, type, typed_constant);
-                        if (currentValue() == SEP_BRACKETS_RIGHT) break;
-                        goToNextToken();
+                        tables.peek().addCONSTSymbol(identifiers, type, typedConstant);
                         break;
                     }
                 }
-            }
+                if (currentValue() != SEP_BRACKETS_RIGHT) goToNextToken();
+            } while (currentValue() != SEP_BRACKETS_RIGHT);
             goToNextToken();
         }
         Type returnType = NIL();
@@ -720,145 +713,138 @@ public class Parser {
         FunctionType functionType = new FunctionType(tables.peek(), null, returnType,
                 null, functionIdentifier.getText());
         requireFollowingToken(SEP_SEMICOLON);
-        //tables.peek().addVARSymbol(functionIdentifier, functionType);
-        //tables.peek().addVARSymbol(getList(new VarNode(functionIdentifier)), functionType, null, false);
+        tables.peek().calculateOffsets();
         functionType.params = tables.peek();
-
         // Declaration
         tables.push(new SymTable());
-        Token result = new Token("result", new Pair(TokenType.IDENTIFIER, VARIABLE)); // Magic identifier result
-        tables.peek().addVARSymbol(getList(new VarNode(result)), returnType, null, false);
-        declaration_part();
-
+        declarationPart();
+        if (!isProcedure && !tables.peek().symTable.containsKey("result")) {
+            Token result = new Token("result", new Pair(TokenType.IDENTIFIER, VARIABLE)); // Magic identifier result
+            tables.peek().addVARSymbol(getList(new VarNode(result)), returnType, null, false);
+        }
         // Compound_statement
-        functionType.compound_statement = compound_statement();
+        functionType.compound_statement = compoundStatement();
+        tables.peek().calculateOffsets();
         functionType.vars = tables.peek();
         tables.pop();
         tables.pop();
         tables.peek().addVARSymbol(functionIdentifier, functionType);
         if (resultCount == 0 && functionType.returnType != NIL() && !exitFound)
-            throw new SyntaxException(String.format("Error in pos %s:%s RESULT identifier in function not found",
-                    currentToken().getPosX(), currentToken().getPosY()));
+            throwSyntaxException("Error in pos %s:%s RESULT identifier in function not found", currentToken());
         if (resultCount > 0) resultCount--;
-        //tables.peek().addVARSymbol(functionIdentifier, functionType);
     }
 
-    private Node parseStatements() throws ScriptException {
+    private Node parseStatements() throws SyntaxException {
         Node statement = new BodyFunction();
         do {
             goToNextToken();
-            Node node = statement_part();
+            Node node = statementPart();
             if (node != null)
                 statement.children.add(node);
         } while (currentValue() == SEP_SEMICOLON);
         return statement;
     }
 
-    private Node compound_statement() throws ScriptException {
+    private Node compoundStatement() throws SyntaxException {
         requireCurrentToken(KEYWORD_BEGIN);
         Node statement = parseStatements();
         requireFollowingToken(KEYWORD_END);
         return statement;
     }
 
-    private Node statement_part() throws ScriptException { // compound_statement
+    private Node statementPart() throws SyntaxException { // compound_statement
         switch (currentValue()) { // statement_list
             case VARIABLE:
-                if (currentToken().getText().toLowerCase().equals("result"))
+                if (currentToken().getText().toLowerCase().equals("result")) // Magic identifier
                     resultCount++;
                 Token currentToken = currentToken();
                 if (getSymbolFromTable(currentToken).isConst)
-                    throw new SyntaxException(String.format("Error in pos %s:%s can't modify const variable",
-                            currentToken.getPosX(), currentToken.getPosY()));
+                    throwSyntaxException("Error in pos %s:%s can't modify const variable", currentToken);
                 Type type = getTypeFromTable(currentToken);
                 if (type.category == Category.FUNCTION) {
                     goToNextToken();
                     return parseFunctionCall(new VarNode(currentToken, getTypeFromTable(currentToken)));
                 }
-                return assignment_statement();
+                return assignmentStatement();
             case KEYWORD_IF:
                 goToNextToken();
-                return if_statement();
+                return ifStatement();
             case KEYWORD_BEGIN:
-                return compound_statement();
+                return compoundStatement();
             case KEYWORD_WHILE:
-                return while_statement();
+                return whileStatement();
             case KEYWORD_FOR:
-                return for_statement();
+                return forStatement();
             case KEYWORD_WRITE:
-                return write(false);
+                return write();
             case KEYWORD_READ:
-                return write(true);
+                return write();
             case KEYWORD_CONTINUE:
-                return parse_continue(currentToken());
+                return parseContinue(currentToken());
             case KEYWORD_BREAK:
-                return parse_break(currentToken());
+                return parseBreak(currentToken());
             case KEYWORD_EXIT:
-                return parse_exit(currentToken());
+                return parseExit(currentToken());
             case SEP_SEMICOLON:
             case KEYWORD_END:
                 return null;
             default:
-                throw new SyntaxException(String.format("Error in pos %s:%s unexpected token %s",
-                        currentToken().getPosX(), currentToken().getPosY(), currentToken().getText()));
+                throwSyntaxException("Error in pos %s:%s unexpected token %s", currentToken(), currentToken().getText());
+                //throw new SyntaxException(String.format("Error in pos %s:%s unexpected token %s",
+                  //      currentToken().getPosX(), currentToken().getPosY(), currentToken().getText()));
         }
+        return null;
     }
 
-    private Node parse_exit(Token token) throws ScriptException {
+    private Node parseExit(Token token) throws SyntaxException {
         exitFound = true;
         Node exitNode = new ExitNode(token);
         goToNextToken();
         if (currentValue() == SEP_BRACKETS_LEFT) {
-            Node expr = parseLogicalExpression();
-            requireTypesCompatibility(tables.peek().symTable.get("result").type, expr.type, false);
-            exitNode.children.add(expr);
+            Node expr = parseExpression();
+            Type newType = tables.peek().symTable.get("result").type;
+            requireTypesCompatibility(newType, expr.type, false);
+            if (expr.type.category != newType.category)
+                exitNode.children.add(new CastNode(expr, expr.type, newType, expr.token));
+            else
+                exitNode.children.add(expr);
         }
         return exitNode;
     }
 
-    private Node parse_continue(Token token) throws SyntaxException {
+    private Node parseContinue(Token token) throws SyntaxException {
         if (loopCount == 0)
-            throw new SyntaxException(String.format("Error in pos %s:%s continue not allowed",
-                    currentToken().getPosX(), currentToken().getPosY()));
+            throwSyntaxException("Error in pos %s:%s continue not allowed", currentToken());
         goToNextToken();
         return new ContinueNode(token);
     }
 
-    private Node parse_break(Token token) throws SyntaxException {
+    private Node parseBreak(Token token) throws SyntaxException {
         if (loopCount == 0)
-            throw new SyntaxException(String.format("Error in pos %s:%s break not allowed",
-                    currentToken().getPosX(), currentToken().getPosY()));
+            throwSyntaxException("Error in pos %s:%s break not allowed", currentToken());
         goToNextToken();
         return new BreakNode(token);
     }
 
-    private Node write(boolean isRead) throws ScriptException { // read
-        Token writeToken = currentToken();
+    private Node write() throws SyntaxException { // read
+        Token current = currentToken();
+        Node node = currentToken().getTokenValue() == KEYWORD_READ ?
+                new ReadNode(currentToken()) : new WriteNode(currentToken());
         goToNextToken();
-        requireCurrentToken(SEP_BRACKETS_LEFT);
-        ArrayList<Node> expressionList = new ArrayList<>();
-        do {
-            goToNextToken();
-            Token currentVariable = currentToken();
-            expressionList.add(parseLogicalExpression());
-            if (isRead && getSymbolFromTable(currentVariable).isConst)
-                throw new SyntaxException(String.format("Error in pos %s:%s can't read to const variable",
-                        currentVariable.getPosX(), currentVariable.getPosY()));
-        } while ((currentValue() == SEP_COMMA));
-        requireFollowingToken(SEP_BRACKETS_RIGHT);
-        return new WriteNode(expressionList, writeToken);
+        parseExpressionList(node.children, current.getTokenValue() == KEYWORD_READ);
+        return node;
     }
 
-    private Node while_statement() throws ScriptException {
+    private Node whileStatement() throws SyntaxException {
         WhileNode whileNode = new WhileNode();
         goToNextToken();
-        whileNode.setCondition(parseLogicalExpression());
+        whileNode.setCondition(parseExpression());
         requireFollowingToken(KEYWORD_DO);
-        whileNode.setBody(statement_part());
+        whileNode.setBody(statementPart());
         return whileNode;
     }
 
-    private Node for_statement() throws ScriptException {
+    private Node forStatement() throws SyntaxException {
         loopCount++;
         Token forToken = currentToken();
         goToNextToken();
@@ -868,48 +854,48 @@ public class Parser {
         ForNode forNode = new ForNode(tables.peek().getSymbol(currentToken()), forToken);
         goToNextToken();
         requireFollowingToken(KEYWORD_ASSIGN);
-        Node from = parseLogicalExpression();
+        Node from = parseExpression();
         requireTypesCompatibility(IntType(), from.type, false);
         forNode.setFrom(from);
         if (currentToken().getTokenValue() == KEYWORD_DOWNTO)
             forNode.isDownTo = true;
         Token toName = currentToken();
         requireFollowingToken(KEYWORD_TO, KEYWORD_DOWNTO);
-        Node to = parseLogicalExpression();
+        Node to = parseExpression();
         requireTypesCompatibility(IntType(), to.type, false);
         forNode.setTo(to);
         requireFollowingToken(KEYWORD_DO);
-        forNode.setBody(statement_part());
+        forNode.setBody(statementPart());
         forNode.setFromName(start);
         forNode.setToName(toName);
         loopCount--;
         return forNode;
     }
 
-    private Node if_statement() throws ScriptException {
+    private Node ifStatement() throws SyntaxException {
         IfNode ifNode = new IfNode();
-        ifNode.setIf_(parseLogicalExpression());
+        ifNode.setIf_(parseExpression());
         requireFollowingToken(KEYWORD_THEN);
-        ifNode.setThen_(statement_part());
+        ifNode.setThen_(statementPart());
         if (currentValue() == KEYWORD_ELSE) {
             goToNextToken();
-            ifNode.setElse_(statement_part());
+            ifNode.setElse_(statementPart());
         }
         return ifNode;
     }
 
-    private Node assignment_statement() throws ScriptException {
+    private Node assignmentStatement() throws SyntaxException {
         Node identifier = null;
         Token currenToken = currentToken();
         Type type = getTypeFromTable(currentToken());
         switch (type.category) {
             case ARRAY:
                 goToNextToken();
-                identifier = indexed_variable(new VarNode(currenToken, type));
+                identifier = indexedVariable(new VarNode(currenToken, type));
                 break;
             case RECORD:
                 goToNextToken();
-                identifier = field_access(new VarNode(currenToken, type));
+                identifier = fieldAccess(new VarNode(currenToken, type));
                 break;
             default:
                 identifier = new VarNode(currenToken, type);
@@ -920,9 +906,14 @@ public class Parser {
             return identifier;
         Type identifierType = identifier.type;
         goToNextToken();
-        Node expression = parseLogicalExpression();
-        isTypes(currenToken, expression);
+        Node expression = parseExpression();
+        //isTypes(currenToken, expression);
+        //System.out.println(currentToken());
         requireTypesCompatibility(identifierType, expression.type, false);
+        Type rightType = expression.type.category == Category.FUNCTION ?
+                ((FunctionType)expression.type).returnType : expression.type;
+        if (rightType.category != identifier.type.category)
+            expression = new CastNode(expression, expression.type, identifier.type, expression.token);
         return new AssignmentStatement(identifier, expression);
     }
 
@@ -931,56 +922,49 @@ public class Parser {
             if (node.token.getTokenValue() == VARIABLE)
                 if (getSymbolFromTable(node.token).isType)
                     return;
-            throw new SyntaxException(String.format("Error in pos %s:%s incompatible types: expected type %s",
-                currentToken().getPosX(), currentToken().getPosY(), getSymbolFromTable(token).type.category));
+            throwSyntaxException("Error in pos %s:%s incompatible types: expected type %s", currentToken(),
+                getSymbolFromTable(token).type.category.toString());
         }
     }
 
-    private Node indexed_variable(Node index) throws ScriptException {
+    private Node indexedVariable(Node index) throws SyntaxException {
         Type currType = index.type;
         while (currentValue() == SEP_BRACKETS_SQUARE_LEFT) {
             if (currType.category != Category.ARRAY)
-                throw new SyntaxException(String.format("Error in pos %s:%s wrong size of array",
-                        currentToken().getPosX(), currentToken().getPosY()));
+                throwSyntaxException("Error in pos %s:%s wrong size of array", currentToken());
             goToNextToken();
             ArrayType a = (ArrayType)currType;
-            Node expr = parseLogicalExpression();
+            Node expr = parseExpression();
             if (expr.type.category != Category.INT)
-                throw new SyntaxException(String.format("Error in pos %s:%s require INT type in index",
-                        currentToken().getPosX(), currentToken().getPosY()));
+                throwSyntaxException("Error in pos %s:%s require INT type in index", currentToken());
             index = new IndexNode(getList(index, expr), a.elementType);
             requireFollowingToken(SEP_BRACKETS_SQUARE_RIGHT);
             currType = a.elementType;
         }
-        //if (currType.category == Category.ARRAY)
-          //  throw new SyntaxException(String.format("Error in pos %s:%s wrong size of array",
-            //        currentToken().getPosX(), currentToken().getPosY()));
         if (currType.category == Category.RECORD)
-            return field_access(index);
+            return fieldAccess(index);
         return index;
     }
 
-    private Node field_access(Node node) throws ScriptException {
+    private Node fieldAccess(Node node) throws SyntaxException {
         Type type = node.type;
         while (currentValue() == SEP_DOT) {
             if (type.category != Category.RECORD)
-                throw new SyntaxException(String.format("Error in pos %s:%s invalid record access",
-                        currentToken().getPosX(), currentToken().getPosY()));
+                throwSyntaxException("Error in pos %s:%s invalid record access", currentToken());
             goToNextToken();
             requireCurrentToken(VARIABLE);
             RecordType recordType = (RecordType)type;
             Iterator<Map.Entry<String, SymTable.Symbol>> it = recordType.fields.symTable.entrySet().iterator();
             SymTable.Symbol symbol = recordType.fields.symTable.get(currentToken().getText().toLowerCase());
             if (symbol == null)
-                throw new SyntaxException(String.format("Error in pos %s:%s field not found %s",
-                        currentToken().getPosX(), currentToken().getPosY(), currentToken().getText()));
+                throwSyntaxException("Error in pos %s:%s field not found %s", currentToken(), currentToken().getText());
             Node varNode = new VarNode(currentToken(), symbol.type);
             node = new FieldAccessNode(getList(node, varNode), symbol.type);
             type = symbol.type;
             goToNextToken();
         }
         if (type.category == Category.ARRAY)
-            return indexed_variable(node);
+            return indexedVariable(node);
         return node;
     }
 
@@ -989,16 +973,16 @@ public class Parser {
         for (int i = tables.size() - 1; i >= 0; i--)
             if (tables.get(i).getAliasTypeFunction(identifier))
                 return tables.get(i).getAliasType(identifier);
-        throw new SyntaxException(String.format("Error in pos %s:%s identifier not found %s ",
-                identifier.getPosX(), identifier.getPosY(), identifier.getText()));
+        throwSyntaxException("Error in pos %s:%s identifier not found %s", identifier, identifier.getText());
+        return null;
     }
 
     private SymTable.Symbol getSymbolFromTable(Token identifier) throws SyntaxException {
         for (int i = tables.size() - 1; i >= 0; i--)
             if (tables.get(i).getAliasTypeFunction(identifier))
                 return tables.get(i).symTable.get(identifier.getText().toLowerCase());
-            throw new SyntaxException(String.format("Error in pos %s:%s identifier not found %s ",
-                    identifier.getPosX(), identifier.getPosY(), identifier.getText()));
+        throwSyntaxException("Error in pos %s:%s identifier not found %s", identifier, identifier.getText());
+        return null;
     }
 
     private void goToNextToken() { tokenizer.Next(); }
@@ -1022,6 +1006,19 @@ public class Parser {
 
         public boolean isScalar() {
             return category == Category.INT || category == Category.DOUBLE || category == Category.CHAR;
+        }
+
+        public int getSize() {
+            switch (category) {
+                case INT:
+                    return 4;
+                case DOUBLE:
+                    return 8;
+                case CHAR:
+                    return 1;
+                default:
+                    return 0;
+            }
         }
 
         public String toString() {
@@ -1074,6 +1071,13 @@ public class Parser {
             this.max = max;
         }
 
+        @Override
+        public int getSize() {
+            int size = (Integer.parseInt(max.result.toString()) -
+                    Integer.parseInt(max.result.toString()) + 1) * elementType.getSize();
+            return size + (4 - size % 4) % 4;
+        }
+
         public String toString() {
             String result = "";
             Type currType = this;
@@ -1096,6 +1100,11 @@ public class Parser {
             this.fields = fields;
         }
 
+        @Override
+        public int getSize() {
+            return fields.getSize() + (4 - fields.getSize() % 4) % 4;
+        }
+
         public String toString() {
             String result = category + "\n";
             for (Map.Entry<String, SymTable.Symbol> entry: fields.symTable.entrySet())
@@ -1106,7 +1115,7 @@ public class Parser {
 
     }
 
-    private class FunctionType extends Type {
+    public class FunctionType extends Type {
         public Type returnType;
         public SymTable params;
         public SymTable vars;
@@ -1177,8 +1186,9 @@ public class Parser {
 
     // Sym Table......
 
-    private class SymTable {
-        private LinkedHashMap<String, Symbol> symTable;
+    public class SymTable {
+        public LinkedHashMap<String, Symbol> symTable;
+        private int size = 0;
 
         private SymTable() {
             symTable = new LinkedHashMap<>();
@@ -1192,6 +1202,7 @@ public class Parser {
 
         // Var
         private void addVARSymbol(ArrayList<Node> symbols, Type type, Node value, boolean isPointerParam) throws SyntaxException {
+            size += symbols.size() * type.getSize();
             for (Node symbol : symbols) {
                 checkDuplicated(symbol.getToken());
                 symTable.put(symbol.token.getText().toLowerCase(), new Symbol(type, value, false, isPointerParam));
@@ -1199,6 +1210,7 @@ public class Parser {
         }
 
         private void addVARSymbol(Token symbol, Type type) throws SyntaxException {
+            size += type.getSize();
             checkDuplicated(symbol);
             symTable.put(symbol.getText().toLowerCase(), new Symbol(type, null, false, false));
         }
@@ -1246,12 +1258,30 @@ public class Parser {
                     token.getPosX(), token.getPosY(), token.getText()));
         }
 
-        private class Symbol {
-            Type type;
-            Node value;
-            boolean isType = false;
-            boolean isConst = false;
-            boolean isPointerParam = false;
+        private HashMap<String, Integer> offsets = new HashMap<>();
+
+        public void calculateOffsets() {
+            int offset = 0;
+            for (Map.Entry<String, Symbol> entry : symTable.entrySet()) {
+                offset += entry.getValue().type.getSize();
+                offsets.put(entry.getKey(), offset);
+            }
+        }
+
+        public int getSize() {
+            return size;
+        }
+
+        public int getOffset(String name) {
+            return offsets.get(name);
+        }
+
+        public class Symbol {
+            public Type type;
+            public Node value;
+            public boolean isType = false;
+            public boolean isConst = false;
+            public boolean isPointerParam = false;
 
             private Symbol(Type type, Node value, boolean isConst, boolean isPointerParam) {
                 this.type = type;
@@ -1265,6 +1295,18 @@ public class Parser {
                 this.isType = true;
             }
 
+        }
+
+        public void genCode(CodeAsm asm) {
+            for (Map.Entry<String, Symbol> entry : symTable.entrySet()) {
+                if (entry.getValue().type.category == Category.FUNCTION) {
+                    FunctionType type = (FunctionType)entry.getValue().type;
+                    asm.startFunction(type.params, type.vars, entry.getKey());
+                    type.vars.genCode(asm);
+                    type.compound_statement.genAsmCode(asm, false);
+                    asm.endFunction();
+                }
+            }
         }
     }
 
@@ -1301,11 +1343,40 @@ public class Parser {
 
         public Token getToken() { return token; }
 
-        public void genAsmCode(CodeAsm asm) {
+        public void genAsmCode(CodeAsm asm, boolean isLeft) {
             for (Node node : children)
-                node.genAsmCode(asm);
+                node.genAsmCode(asm, isLeft);
         }
 
+    }
+
+    public void putValueOnStack(CodeAsm asm, Type type) {
+        asm.add(CommandAsm.CommandType.POP, RegisterType.EAX);
+        switch (type.category) {
+            case CHAR:
+                asm.add(CommandAsm.CommandType.MOV, RegisterType.AL, DataType.BYTE, RegisterType.EAX, 0);
+                asm.add(CommandAsm.CommandType.SUB, RegisterType.ESP, 1);
+                asm.add(CommandAsm.CommandType.MOV, DataType.BYTE, RegisterType.ESP, 0, RegisterType.AL);
+                //code.push_back({ asm_command::type::mov,{ asm_reg::reg_type::esp, asm_mem::mem_size::byte },asm_reg::reg_type::al });
+                //code.push_back({ asm_command::type::mov, {asm_reg::reg_type::ebx, asm_mem::mem_size::dword, -offset.second}, asm_reg::reg_type::eax });
+                return;
+            case INT:
+                asm.add(CommandAsm.CommandType.PUSH, DataType.DWORD, RegisterType.EAX, 0);
+                return;
+            case DOUBLE:
+                asm.add(CommandAsm.CommandType.PUSH, DataType.DWORD, RegisterType.EAX, 4);
+                asm.add(CommandAsm.CommandType.PUSH, DataType.DWORD, RegisterType.EAX, 0);
+                return;
+            case RECORD:
+            case ARRAY:
+                asm.add(CommandAsm.CommandType.ADD, RegisterType.EAX, type.getSize() - 4);
+                asm.add(CommandAsm.CommandType.MOV, RegisterType.ECX, type.getSize() / 4);
+                String label = asm.getLabelName("COPYSTRUCT");
+                asm.add(CommandAsm.CommandType.LABEL, label);
+                asm.add(CommandAsm.CommandType.PUSH, DataType.DWORD, RegisterType.EAX, 0);
+                asm.add(CommandAsm.CommandType.SUB, RegisterType.EAX, 4);
+                asm.add(CommandAsm.CommandType.LOOP, label);
+        } // TODO throw
     }
 
     public class VarNode extends Node {
@@ -1314,20 +1385,27 @@ public class Parser {
         public VarNode(ArrayList<Node> children, Token token) { super(children, token); }
 
         @Override
-        public void genAsmCode(CodeAsm asm) {
-            int offset = 10;
-            // TODO взять из таблицы
-            asm.add(CommandAsm.CommandType.MOV, RegisterType.EAX, RegisterType.EBP);
-            asm.add(CommandAsm.CommandType.SUB, RegisterType.EAX, offset);
-            asm.add(CommandAsm.CommandType.PUSH, RegisterType.EAX);
+        public void genAsmCode(CodeAsm asm, boolean isLeft) {
+            String name = token.getText().toLowerCase();
+            javafx.util.Pair<Integer, Integer> offset = asm.getOffset(name);
+            asm.add(CommandAsm.CommandType.MOV, RegisterType.EAX, DataType.DWORD, RegisterType.EBP, offset.getKey());
+            asm.add(CommandAsm.CommandType.SUB, RegisterType.EAX, offset.getValue());
+            if (asm.isVar(name))
+                asm.add(CommandAsm.CommandType.PUSH, DataType.DWORD, RegisterType.EAX, 0);
+            else
+                asm.add(CommandAsm.CommandType.PUSH, RegisterType.EAX);
+            if (!isLeft)
+                putValueOnStack(asm, asm.getType(name));
         }
     }
+
 
     public class ConstNode extends Node {
         Object result;
 
         public ConstNode(Type type, Object result) { // change plz
-            super(null, new Token(result, new Pair(TokenType.IDENTIFIER, type == integer_ ? TokenValue.CONST_INTEGER : TokenValue.CONST_DOUBLE)));
+            super(null, new Token(result, new Pair(TokenType.IDENTIFIER, type.category == Category.INT
+                    ? TokenValue.CONST_INTEGER : TokenValue.CONST_DOUBLE)));
             this.type = type;
             this.result = result;
         }
@@ -1338,17 +1416,24 @@ public class Parser {
         }
 
         @Override
-        public void genAsmCode(CodeAsm asm) {
+        public void genAsmCode(CodeAsm asm, boolean isLeft) {
             switch (this.type.category) {
                 case INT:
-                    asm.add(CommandAsm.CommandType.PUSH, (Integer)result);
+                    asm.add(CommandAsm.CommandType.PUSH, Integer.parseInt(result.toString()));
                     break;
                 case CHAR:
-                    asm.add(CommandAsm.CommandType.SUB, RegisterType.ESP, 1);
-                    asm.add(CommandAsm.CommandType.MOV, DataType.BYTE, RegisterType.ESP, 0, (Integer)result);
+                    if (result.toString().length() > 1) {
+                        String constant = asm.addStringConstant(result.toString());
+                        asm.add(CommandAsm.CommandType.PUSH, constant);
+                    }
+                    else {
+                        asm.add(CommandAsm.CommandType.SUB, RegisterType.ESP, 1);
+                        asm.add(CommandAsm.CommandType.MOV, DataType.BYTE, RegisterType.ESP, 0,
+                                (result.toString().codePointAt(0)));
+                    }
                     break;
                 case DOUBLE:
-                    String s = asm.addDoubleConstant((Double)result);
+                    String s = asm.addDoubleConstant(Double.parseDouble(result.toString()));
                     asm.add(CommandAsm.CommandType.PUSH, DataType.DWORD, s, 4);
                     asm.add(CommandAsm.CommandType.PUSH, DataType.DWORD, s, 0);
                     break;
@@ -1356,30 +1441,195 @@ public class Parser {
         }
     }
 
+    // Operations ..............
+
+    HashMap<TokenValue, CommandType> operationsInt = new HashMap<TokenValue, CommandType>() {{
+        put(OP_PLUS, CommandType.ADD);
+        put(OP_MINUS, CommandType.SUB);
+        put(OP_MULT, CommandType.IMUL);
+        put(KEYWORD_AND, CommandType.AND);
+        put(KEYWORD_OR, CommandType.OR);
+        put(KEYWORD_XOR, CommandType.XOR);
+        put(KEYWORD_DIV, CommandType.IDIV);
+        put(KEYWORD_MOD, CommandType.IDIV);
+        put(KEYWORD_ASSIGN, CommandType.MOV);
+        put(KEYWORD_SHL, CommandType.SHL);
+        put(KEYWORD_SHR, CommandType.SHR);
+        put(OP_GREATER_OR_EQUAL, CommandType.SETL);
+        put(OP_GREATER, CommandType.SETLE);
+        put(OP_LESS_OR_EQUAL, CommandType.SETG);
+        put(OP_LESS, CommandType.SETGE);
+        put(OP_EQUAL, CommandType.SETNE);
+        put(OP_NOT_EQUAL, CommandType.SETE);
+    }};
+
+    HashMap<TokenValue, CommandType> operationsDouble = new HashMap<TokenValue, CommandType>() {{
+        put(OP_PLUS, CommandType.ADDSD);
+        put(OP_MINUS, CommandType.SUBSD);
+        put(OP_MULT, CommandType.MULSD);
+        put(OP_DIVISION, CommandType.DIVSD);
+        put(KEYWORD_ASSIGN, CommandType.MOVSD);
+        put(OP_GREATER_OR_EQUAL, CommandType.SETB);
+        put(OP_GREATER, CommandType.SETBE);
+        put(OP_LESS_OR_EQUAL, CommandType.SETA);
+        put(OP_LESS, CommandType.SETAE);
+        put(OP_EQUAL, CommandType.JP);
+        put(OP_NOT_EQUAL, CommandType.JNP);
+    }};
+
+    public void compareToAsm(CodeAsm asm, Node node) {
+        node.children.get(0).genAsmCode(asm, false);
+        node.children.get(1).genAsmCode(asm, false);
+        Type leftType = node.children.get(0).type;
+        CommandType commandType;
+        switch (leftType.category) {
+            case CHAR:
+                asm.add(CommandType.MOVSX, RegisterType.EBX, DataType.BYTE, RegisterType.ESP, 0);
+                asm.add(CommandType.MOVSX, RegisterType.EAX, DataType.BYTE, RegisterType.ESP, 1);
+                asm.add(CommandType.SUB, RegisterType.ESP, 2);
+                asm.add(CommandType.CMP, RegisterType.EAX, RegisterType.EBX);
+                commandType = operationsInt.get(node.token.getTokenValue());
+                break;
+            case INT:
+                asm.add(CommandType.POP, RegisterType.EBX);
+                asm.add(CommandType.CMP, DataType.DWORD, RegisterType.ESP, 0, RegisterType.EBX);
+                //code.push_back({ asm_command::type::cmp, {asm_reg::reg_type::esp, asm_mem::mem_size::dword},  asm_reg::reg_type::ebx });
+                //code.push_back({ asm_command::type::cmp, {asm_reg::reg_type::ebx, asm_mem::mem_size::dword, -offset.second }, asm_reg::reg_type::eax });
+
+                //public void add(CommandAsm.CommandType type, DataType dataType, RegisterType registerType1, Integer offset, RegisterType registerType) {
+
+            commandType = operationsInt.get(node.token.getTokenValue());
+                break;
+            case DOUBLE:
+                boolean isEqual = node.token.getTokenValue() == OP_EQUAL || node.token.getTokenValue() == OP_NOT_EQUAL;
+                CommandType compareType = isEqual ? CommandType.UCOMISD : CommandType.COMISD;
+                asm.add(CommandType.MOVSD, RegisterType.XMM0, DataType.QWORD, RegisterType.ESP, 8);
+                asm.add(CommandType.MOVSD, RegisterType.XMM1, DataType.QWORD, RegisterType.ESP, 0);
+                asm.add(CommandType.ADD, RegisterType.ESP, 12);
+                asm.add(compareType, RegisterType.XMM0, RegisterType.XMM1);
+                commandType = operationsDouble.get(node.token.getTokenValue());
+                if (!isEqual)
+                    break;
+                String label = asm.getLabelName("CONDFAIL");
+                String endLabel = asm.getLabelName("ENDCOND");
+                asm.add(CommandType.LAHF);
+                asm.add(CommandType.TEST, RegisterType.AH, 68);
+                asm.add(commandType, label);
+                asm.add(CommandType.MOV, DataType.DWORD, RegisterType.ESP, 0, -1);
+                asm.add(CommandType.JMP, endLabel);
+                asm.add(CommandType.LABEL, label);
+                asm.add(CommandType.MOV, DataType.DWORD, RegisterType.ESP, 0, 0);
+                asm.add(CommandType.LABEL, endLabel);
+                return;
+            default:
+                return; // :-)
+        }
+        asm.add(commandType, RegisterType.AL);
+        asm.add(CommandType.SUB, RegisterType.AL, 1);
+        asm.add(CommandType.MOVSX, RegisterType.EAX, RegisterType.AL);
+        asm.add(CommandType.MOV, DataType.DWORD, RegisterType.ESP, 0, RegisterType.EAX);
+    }
+
     public class BinOpNode extends Node {
         public BinOpNode(ArrayList<Node> children, Token token, Type type) {
             super(children, token);
             this.type = type;
         }
+
+        @Override
+        public void genAsmCode(CodeAsm asm, boolean isLeft) {
+            if (isLogical(token.getTokenValue())) {
+                compareToAsm(asm, this);
+                return;
+            }
+            children.get(0).genAsmCode(asm, false);
+            if (children.size() == 1) {
+                if (token.getTokenValue() == OP_MINUS)
+                    if (type.category == Category.DOUBLE)
+                        asm.add(CommandType.XOR, DataType.BYTE, RegisterType.ESP, 7, 128);
+                    else
+                        asm.add(CommandType.NEG, DataType.DWORD, RegisterType.ESP, 0);
+                else if (token.getTokenValue() == KEYWORD_NOT)
+                    asm.add(CommandType.NOT, DataType.DWORD, RegisterType.ESP, 0);
+                return;
+            }
+            children.get(1).genAsmCode(asm, false);
+            CommandType commandType;
+            RegisterType reg1, reg2;
+            if (type.category == Category.DOUBLE) {
+                reg1 = RegisterType.XMM0;
+                reg2 = RegisterType.XMM1;
+                asm.add(CommandType.MOVSD, reg2, DataType.QWORD, RegisterType.ESP, 0);
+                asm.add(CommandType.ADD, RegisterType.ESP, 8);
+                asm.add(CommandType.MOVSD, reg1, DataType.QWORD, RegisterType.ESP, 0);
+                commandType = operationsDouble.get(token.getTokenValue());
+            } else {
+                reg1 = RegisterType.EAX;
+                reg2 = RegisterType.EBX;
+                commandType = operationsInt.get(token.getTokenValue());
+                if (commandType == CommandType.SHL || commandType == CommandType.SHR) {
+                    reg2 = RegisterType.CL;
+                    asm.add(CommandType.MOV, RegisterType.EBX, RegisterType.ECX);
+                    asm.add(CommandType.POP, RegisterType.ECX);
+                }
+                else
+                    asm.add(CommandType.POP, reg2);
+                asm.add(CommandType.POP, reg1);
+            }
+            if (commandType == CommandType.IDIV)
+                asm.add(CommandType.CDQ);
+            if (commandType == CommandType.IMUL || commandType == CommandType.IDIV)
+                asm.add(commandType, reg2);
+            else
+                asm.add(commandType, reg1, reg2);
+            if (type.category == Category.DOUBLE)
+                asm.add(CommandType.MOVSD, DataType.QWORD, RegisterType.ESP, 0, reg1);
+            else
+                asm.add(CommandType.PUSH, token.getTokenValue() == KEYWORD_MOD ? RegisterType.EDX : reg1);
+            if (commandType == CommandType.SHL || commandType == CommandType.SHR)
+                asm.add(CommandType.MOV, RegisterType.ECX, RegisterType.EBX);
+        }
+
+        //public void add(CommandAsm.CommandType type, DataType dataType, RegisterType registerType1, Integer offset, RegisterType registerType) {
+
     }
 
     public class UnaryMinusNode extends Node {
-        public UnaryMinusNode(ArrayList<Node> children, Token token) { super(children, token); }
+        public UnaryMinusNode(ArrayList<Node> children, Token token) {
+            super(children, token);
+            this.type = children.get(0).type;
+        }
+
+        @Override
+        public void genAsmCode(CodeAsm asm, boolean isLeft) {
+            children.get(0).genAsmCode(asm, false);
+            if (type.category == Category.DOUBLE)
+                asm.add(CommandType.XOR, DataType.BYTE, RegisterType.ESP, 7, 128);
+            else
+                asm.add(CommandType.NEG, DataType.DWORD, RegisterType.ESP, 0);
+        }
     }
 
     public class NotNode extends Node {
-        public NotNode(ArrayList<Node> children, Token token) { super(children, token); }
+        public NotNode(ArrayList<Node> children, Token token) {
+            super(children, token);
+            this.type = children.get(0).type;
+        }
     }
 
     public class ArrayNode extends Node {
         public ArrayNode() {
             super(new ArrayList<>(),  new Token("typed_constant", new Pair(TokenType.IDENTIFIER, VARIABLE)));
         }
+//        public ArrayNode(Token token) {
+//
+//        }
     }
 
     public class RecordNode extends Node {
-        public RecordNode() {
+        public RecordNode(Type type) {
             super(new ArrayList<>(), new Token("typed_constant", new Pair(TokenType.IDENTIFIER, VARIABLE)));
+            this.type = type;
         }
     }
 
@@ -1389,7 +1639,45 @@ public class Parser {
 
     public class AssignmentStatement extends Node {
         public AssignmentStatement(Node identifier, Node expression) {
-            super(getList(identifier, expression), new Token(":=", new Pair(TokenType.KEYWORD, KEYWORD_ASSIGN)));}
+            super(getList(identifier, expression), new Token(":=", new Pair(TokenType.KEYWORD, KEYWORD_ASSIGN))); }
+
+        @Override
+        public void genAsmCode(CodeAsm asm, boolean isLeft) {
+            children.get(0).genAsmCode(asm, true);
+            children.get(1).genAsmCode(asm, !children.get(1).type.isScalar());
+            switch (children.get(1).type.category) {
+                case INT:
+                    asm.add(CommandAsm.CommandType.POP, RegisterType.EAX);
+                    asm.add(CommandAsm.CommandType.POP, RegisterType.EBX);
+                    asm.add(CommandAsm.CommandType.MOV, DataType.DWORD, RegisterType.EBX, 0, RegisterType.EAX);
+                    return;
+                case CHAR:
+                    asm.add(CommandType.MOV, RegisterType.AL, DataType.BYTE, RegisterType.ESP, 0);
+                    asm.add(CommandAsm.CommandType.ADD, RegisterType.ESP, 1);
+                    asm.add(CommandAsm.CommandType.POP, RegisterType.EBX);
+                    asm.add(CommandAsm.CommandType.MOV, DataType.BYTE, RegisterType.EBX, 0, RegisterType.AL);
+                    return;
+                case DOUBLE:
+                    asm.add(CommandAsm.CommandType.MOVSD, RegisterType.XMM0, DataType.QWORD, RegisterType.ESP, 0);
+                    asm.add(CommandAsm.CommandType.ADD, RegisterType.ESP, 8);
+                    asm.add(CommandAsm.CommandType.POP, RegisterType.EAX);
+                    asm.add(CommandAsm.CommandType.MOVSD, DataType.QWORD, RegisterType.EAX, 0, RegisterType.XMM0);
+                    return;
+                case ARRAY:
+                case RECORD:
+                    asm.add(CommandAsm.CommandType.POP, RegisterType.EAX);
+                    asm.add(CommandAsm.CommandType.POP, RegisterType.EBX);
+                    asm.add(CommandAsm.CommandType.MOV, RegisterType.ECX, children.get(1).type.getSize() / 4);
+                    String label = asm.getLabelName("COPYSTRUCT");
+                    asm.add(CommandAsm.CommandType.LABEL, label);
+                    asm.add(CommandAsm.CommandType.MOV, RegisterType.EDX, DataType.DWORD, RegisterType.EAX, 0);
+                    asm.add(CommandAsm.CommandType.MOV, DataType.DWORD, RegisterType.EBX, 0, RegisterType.EDX);
+                    asm.add(CommandAsm.CommandType.ADD, RegisterType.EAX, 4);
+                    asm.add(CommandAsm.CommandType.ADD, RegisterType.EBX, 4);
+                    asm.add(CommandAsm.CommandType.LOOP, label);
+                    return;
+            }
+        }
     }
 
     public class IfNode extends Node {
@@ -1399,7 +1687,7 @@ public class Parser {
 
         public Node getThen_() { return this.children.get(1); }
 
-        public Node getElse_() { return this.children.get(2); }
+        public Node getElse_() { return children.size() > 2 ? this.children.get(2) : null; }
 
         public void setIf_(Node if_) { this.children.set(0, if_); }
 
@@ -1408,7 +1696,25 @@ public class Parser {
         public void setElse_(Node else_) {
             this.children.add(null);
             //else_.token = new Token("else", new Pair(TokenType.IDENTIFIER, VARIABLE));
-            this.children.set(2, else_); }
+            this.children.set(2, else_);
+        }
+
+        @Override
+        public void genAsmCode(CodeAsm asm, boolean isLeft) {
+            String elseLabel = asm.getLabelName("IFFAIL");
+            String endLabel = asm.getLabelName("IFEND");
+            getIf_().genAsmCode(asm, false);
+            asm.add(CommandType.POP, RegisterType.EAX);
+            asm.add(CommandType.TEST, RegisterType.EAX, RegisterType.EAX);
+            asm.add(CommandType.JZ, elseLabel);
+            if (getThen_() != null)
+                getThen_().genAsmCode(asm, false);
+            asm.add(CommandType.JMP, endLabel);
+            asm.add(CommandType.LABEL, elseLabel);
+            if (getElse_() != null)
+                getElse_().genAsmCode(asm, false);
+            asm.add(CommandType.LABEL, endLabel);
+        }
     }
 
     public class WhileNode extends Node {
@@ -1421,6 +1727,26 @@ public class Parser {
         public void setCondition(Node condition) { this.children.set(0, condition); }
 
         public void setBody(Node body) { this.children.set(1, body); }
+
+        @Override
+        public void genAsmCode(CodeAsm asm, boolean isLeft) {
+            String bodyLabel = asm.getLabelName("WHILEBODY");
+            String condLabel = asm.getLabelName("WHILECOND");
+            String endLabel  = asm.getLabelName("WHILEEND");
+            asm.pushLoopStart(condLabel);
+            asm.pushLoopEnd(endLabel);
+            asm.add(CommandType.JMP, condLabel);
+            asm.add(CommandType.LABEL, bodyLabel);
+            getBody().genAsmCode(asm, false);
+            asm.add(CommandType.LABEL, condLabel);
+            getCondition().genAsmCode(asm, false);
+            asm.add(CommandType.POP, RegisterType.EAX);
+            asm.add(CommandType.TEST, RegisterType.EAX, RegisterType.EAX);
+            asm.add(CommandType.JNZ, bodyLabel);
+            asm.add(CommandType.LABEL, endLabel);
+            asm.popLoopStart();
+            asm.popLoopEnd();
+        }
     }
 
     public class ForNode extends Node {
@@ -1428,9 +1754,9 @@ public class Parser {
         public boolean isDownTo = false;
 
         public ForNode(SymTable.Symbol counter, Token token) {
-
             super(getTmpLists(5), token);
-            this.counter = counter; }
+            this.counter = counter;
+        }
 
         public Node getFrom() { return this.children.get(1); }
 
@@ -1447,6 +1773,40 @@ public class Parser {
         public void setTo(Node to) { this.children.set(3, to); }
 
         public void setBody(Node body) { this.children.set(4, body); }
+
+        @Override
+        public void genAsmCode(CodeAsm asm, boolean isLeft) {
+            //asm.add(CommandType.SUB, RegisterType.ESP, 12);
+            String bodyLabel = asm.getLabelName("LOOPBODY");
+            String condLabel = asm.getLabelName("LOOPCOND");
+            String endLabel  = asm.getLabelName("LOOPEND");
+            asm.incForCount();
+            asm.pushLoopStart(condLabel);
+            asm.pushLoopEnd(endLabel);
+            getTo().genAsmCode(asm, false);
+            getFrom().genAsmCode(asm, false);
+            javafx.util.Pair<Integer, Integer> offset = asm.getOffset(children.get(0).token.getText().toLowerCase());
+            asm.add(CommandType.POP, RegisterType.EAX);
+            asm.add(CommandType.MOV, RegisterType.EBX, DataType.DWORD, RegisterType.EBP, offset.getKey());
+            asm.add(CommandType.MOV, DataType.DWORD, RegisterType.EBX, -offset.getValue(), RegisterType.EAX);
+            asm.add(isDownTo ? CommandType.INC : CommandType.DEC, DataType.DWORD, RegisterType.EBX, -offset.getValue());
+            asm.add(CommandType.JMP, condLabel);
+            asm.add(CommandType.LABEL, bodyLabel);
+            if (children.size() == 5 && getBody() != null)
+                getBody().genAsmCode(asm, false);
+            asm.add(CommandType.LABEL, condLabel);
+            asm.add(CommandType.MOV, RegisterType.EBX, DataType.DWORD, RegisterType.EBP, offset.getKey());
+            asm.add(isDownTo ? CommandType.DEC : CommandType.INC, DataType.DWORD, RegisterType.EBX, -offset.getValue());
+            asm.add(CommandType.MOV, RegisterType.EAX, DataType.DWORD, RegisterType.ESP, 0);
+            asm.add(CommandType.CMP, DataType.DWORD, RegisterType.EBX, -offset.getValue(), RegisterType.EAX);
+            asm.add(isDownTo ? CommandType.JGE : CommandType.JLE, bodyLabel);
+            asm.add(CommandType.LABEL, endLabel);
+            asm.add(CommandType.ADD, RegisterType.ESP, 4);
+            //asm.add(CommandType.ADD, RegisterType.ESP, 16);
+            asm.popLoopStart();
+            asm.popLoopEnd();
+            asm.decForCount();
+        }
     }
 
     private class IndexNode extends Node {
@@ -1482,15 +1842,127 @@ public class Parser {
 
         public CastNode(Node to, Type oldType, Type newType, Token token) {
             super(getList(to), token);
+            //to.type = newType;
             this.oldType = oldType;
             this.type = newType;
+        }
+
+        @Override
+        public void genAsmCode(CodeAsm asm, boolean isLeft) {
+            children.get(0).genAsmCode(asm, false);
+            Type resultType = children.get(0).type;
+            switch (type.category) {
+                case CHAR:
+                    switch (resultType.category) {
+                        case CHAR:
+                            return;
+                        case INT:
+                            asm.add(CommandType.POP, RegisterType.EAX);
+                            asm.add(CommandType.SUB, RegisterType.ESP, 1);
+                            asm.add(CommandType.MOV, RegisterType.ESP, DataType.BYTE, RegisterType.AL, 0);
+                            return;
+                        case DOUBLE:
+                            asm.add(CommandType.CVTTSD2SI, RegisterType.EAX, DataType.QWORD, RegisterType.ESP, 0);
+                            asm.add(CommandType.ADD, RegisterType.ESP, 7);
+                            asm.add(CommandType.MOV, RegisterType.ESP, DataType.BYTE, RegisterType.AL, 0);
+                            return;
+                        default:
+                            return; // :-)
+                    }
+                case INT:
+                    switch (resultType.category) {
+                        case CHAR:
+                            asm.add(CommandType.MOVSX, RegisterType.EAX, DataType.BYTE, RegisterType.ESP, 0);
+                            asm.add(CommandType.SUB, RegisterType.ESP, 3);
+                            asm.add(CommandType.MOV, RegisterType.ESP, DataType.DWORD, RegisterType.EAX, 0);
+                            return;
+                        case INT:
+                            return;
+                        case DOUBLE:
+                            asm.add(CommandType.CVTTSD2SI, RegisterType.EAX, DataType.QWORD, RegisterType.ESP, 0);
+                            asm.add(CommandType.ADD, RegisterType.ESP, 4);
+                            asm.add(CommandType.MOV, RegisterType.ESP, DataType.DWORD, RegisterType.EAX, 0);
+                            break;
+                        default:
+                            return; // :-)
+                    }
+                case DOUBLE:
+                    switch (resultType.category) {
+                        case CHAR:
+                            asm.add(CommandType.MOVSX, RegisterType.EAX, DataType.BYTE, RegisterType.ESP, 0);
+                            asm.add(CommandType.SUB, RegisterType.ESP, 7);
+                            break;
+                        case INT:
+                            asm.add(CommandType.MOV, RegisterType.EAX, DataType.DWORD, RegisterType.ESP, 0);
+                            asm.add(CommandType.SUB, RegisterType.ESP, 4);
+                            break;
+                        case DOUBLE:
+                            return;
+                        default:
+                            return; // :-)
+                    }
+                    asm.add(CommandType.cvtsi2sd, RegisterType.XMM0, RegisterType.EAX);
+                    asm.add(CommandType.MOVSD, DataType.QWORD, RegisterType.ESP, 0, RegisterType.XMM0);
+                    return;
+                default:
+                    return; // :-)
+            }
         }
     }
 
     private class WriteNode extends Node {
 
-        public WriteNode(ArrayList<Node> children, Token token) {
-            super(children, token);
+        public WriteNode(Token token) { super(new ArrayList<>(), token); }
+
+        @Override
+        public void genAsmCode(CodeAsm asm, boolean isLeft) {
+            //asm.add(CommandAsm.CommandType.PUSH, RegisterType.ESP);
+            //asm.add(CommandAsm.CommandType.AND, RegisterType.ESP, -16);
+            int size = 4;
+            StringBuilder builder = new StringBuilder();
+            for (Node node : children) {
+                switch (node.type.category) {
+                    case INT:
+                        size += 4;
+                        builder.append("%d");
+                        break;
+                    case DOUBLE:
+                        size += 8;
+                        builder.append("%f");
+                        break;
+                    case CHAR:
+                        if (node.token.getText().length() > 1)
+                            builder.append("%s");
+                        else
+                            builder.append("%c");
+                        size += 4;
+                        break;
+                }
+            }
+            int al_size = (16 - (size + 4 * asm.getLoopForCount()) % 16) % 16;
+            //int al_size = size += (16 - size % 16) % 16;
+            if (al_size > 0)
+                asm.add(CommandAsm.CommandType.SUB, RegisterType.ESP, al_size);
+            for (int i = children.size() - 1; i >= 0; i--) {
+                Node child = children.get(i);
+                child.genAsmCode(asm, false);
+                if (child.type.category == Category.CHAR && child.token.getText().length() == 1) {
+                    asm.add(CommandAsm.CommandType.MOVSX, RegisterType.EAX, DataType.BYTE, RegisterType.ESP, 0);
+                    asm.add(CommandAsm.CommandType.ADD, RegisterType.ESP, 1);
+                    asm.add(CommandAsm.CommandType.PUSH, RegisterType.EAX);
+                }
+            }
+            String format = asm.addStringConstant(builder.toString());
+            asm.add(CommandAsm.CommandType.PUSH, format);
+            asm.add(CommandAsm.CommandType.CALL, "_printf");
+            asm.add(CommandAsm.CommandType.ADD, RegisterType.ESP, size + al_size);
+        }
+    }
+
+    private class FunctionCallNode extends Node {
+        public FunctionCallNode(Token token, Type returnType) {
+            super(new ArrayList<>(), token);
+            this.type = returnType;
         }
     }
 
@@ -1510,5 +1982,9 @@ public class Parser {
         public ExitNode(Token token) {
             super(new ArrayList<>(), token);
         }
+    }
+
+    private class ReadNode extends Node {
+        public ReadNode(Token token) { super(new ArrayList<>(), token); }
     }
 }
