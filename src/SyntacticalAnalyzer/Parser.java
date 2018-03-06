@@ -376,14 +376,7 @@ public class Parser {
             default:
                 throwSyntaxException("Error in pos %s:%s can't convert from %s to %s", token,
                         expr.type.category.toString(), token.getText());
-                //throw new SyntaxException(String.format("Error in pos %s:%s can't convert from %s to %s",
-                  //      token.getPosX(), token.getPosY(), expr.type.category, token.getText()));
         }
-        if (castType.category == expr.type.category)
-            throwSyntaxException("Error in pos %s:%s can't convert from %s to %s", token,
-                    expr.type.category.toString(), castType.category.toString());
-            //throw new SyntaxException(String.format("Error in pos %s:%s can't convert from %s to %s",
-              //      token.getPosX(), token.getPosY(), expr.type.category, castType.category));
         requireFollowingToken(SEP_BRACKETS_RIGHT);
         return new CastNode(expr, expr.type, castType, token);
     }
@@ -397,6 +390,10 @@ public class Parser {
         tables.push(new SymTable());
         declarationPart();
         tables.peek().calculateOffsets();
+//        for (SymTable table : tables) {
+//            table.printOffsets();
+//            System.out.println(">>>>>>>>>>>");
+//        }
         return new FunctionType(new SymTable(), tables.peek(), NIL(), compoundStatement(), name);
     }
 
@@ -534,6 +531,9 @@ public class Parser {
             fields.addVARSymbol(identifierList(), parseType(), null, false); // May be not....
             requireFollowingToken(SEP_SEMICOLON);
         }
+        fields.calculateOffsets();
+        //fields.printOffsets();
+        //System.out.println(".........");
         requireFollowingToken(KEYWORD_END);
         return new RecordType(fields);
     }
@@ -542,19 +542,17 @@ public class Parser {
         Node typedConstant;
         switch (type.category) {
             case RECORD:
-                typedConstant = new RecordNode(null);
                 requireFollowingToken(SEP_BRACKETS_LEFT);
                 RecordType recordType = (RecordType)type;
+                typedConstant = new TypedConstant(recordType);
                 for (Map.Entry<String, SymTable.Symbol> pair : recordType.fields.symTable.entrySet()) {
                     Token variable = currentToken();
                     requireFollowingToken(VARIABLE);
-                    if (!pair.getKey().equals(variable.getText()))
-                        throw new SyntaxException(
-                            recordType.fields.symTable.containsKey(variable.getText()) ?
-                                String.format("Error in pos %s:%s illegal initialization order ",
-                                        variable.getPosX(), variable.getPosY()) :
-                                String.format("Error in pos %s:%s unknown record field identifier %s ",
-                                        variable.getPosX(), variable.getPosY(), variable.getText()));
+                    if (!pair.getKey().equals(variable.getText())) {
+                        if (recordType.fields.symTable.containsKey(variable.getText()))
+                            throwSyntaxException("Error in pos %s:%s illegal initialization order", variable);
+                        throwSyntaxException("Error in pos %s:%s unknown record field identifier %s", variable, variable.getText());
+                    }
                     requireFollowingToken(OP_COLON);
                     typedConstant.children.add(typedConstant(pair.getValue().type));
                     requireFollowingToken(SEP_SEMICOLON);
@@ -563,11 +561,11 @@ public class Parser {
                 return typedConstant;
             case ARRAY:
                 ArrayType arrayType = (ArrayType)type;
+                typedConstant = new TypedConstant(arrayType);
                 int min = Integer.parseInt(arrayType.min.result.toString());
                 int max = Integer.parseInt(arrayType.max.result.toString());
                 Type element = arrayType.elementType;
                 requireFollowingToken(SEP_BRACKETS_LEFT);
-                typedConstant = new ArrayNode();
                 for (int i = min; i <= max; i++) {
                     typedConstant.children.add(typedConstant(element));
                     if (i != max) {
@@ -836,11 +834,13 @@ public class Parser {
     }
 
     private Node whileStatement() throws SyntaxException {
+        loopCount++;
         WhileNode whileNode = new WhileNode();
         goToNextToken();
         whileNode.setCondition(parseExpression());
         requireFollowingToken(KEYWORD_DO);
         whileNode.setBody(statementPart());
+        loopCount--;
         return whileNode;
     }
 
@@ -914,6 +914,7 @@ public class Parser {
                 ((FunctionType)expression.type).returnType : expression.type;
         if (rightType.category != identifier.type.category)
             expression = new CastNode(expression, expression.type, identifier.type, expression.token);
+        //return new CastNode(left, leftType, operationType, left.token);
         return new AssignmentStatement(identifier, expression);
     }
 
@@ -1017,7 +1018,7 @@ public class Parser {
                 case CHAR:
                     return 1;
                 default:
-                    return 0;
+                    return this.getSize();
             }
         }
 
@@ -1074,8 +1075,24 @@ public class Parser {
         @Override
         public int getSize() {
             int size = (Integer.parseInt(max.result.toString()) -
-                    Integer.parseInt(max.result.toString()) + 1) * elementType.getSize();
+                    Integer.parseInt(min.result.toString()) + 1) * elementType.getSize();
             return size + (4 - size % 4) % 4;
+        }
+
+        public int getArrayOffset(Type type) {
+            switch (type.category) {
+                case INT:
+                    return 4;
+                case DOUBLE:
+                    return 8;
+                case CHAR:
+                    return 1;
+                case ARRAY:
+                case RECORD:
+                    return type.getSize();
+                default: // :-)
+            }
+            return 0;
         }
 
         public String toString() {
@@ -1098,6 +1115,24 @@ public class Parser {
         public RecordType(SymTable fields) {
             super(Category.RECORD);
             this.fields = fields;
+        }
+
+        public int getRecordOffset(Token token, Type type) {
+            int offset = fields.getOffset(token.getText());
+            switch (type.category) {
+                case INT:
+                    return offset - 4;
+                case DOUBLE:
+                    return offset - 8;
+                case CHAR:
+                    return offset - 1;
+                case ARRAY:
+                    return offset - ((ArrayType)type).getSize();
+                case RECORD:
+                    return offset - ((RecordType)type).getSize();
+                default: // :-)
+            }
+            return 0;
         }
 
         @Override
@@ -1258,15 +1293,26 @@ public class Parser {
                     token.getPosX(), token.getPosY(), token.getText()));
         }
 
-        private HashMap<String, Integer> offsets = new HashMap<>();
+        private LinkedHashMap<String, Integer> offsets = new LinkedHashMap<>();
 
         public void calculateOffsets() {
             int offset = 0;
             for (Map.Entry<String, Symbol> entry : symTable.entrySet()) {
+                if (entry.getValue().isType) {
+                    offsets.put(entry.getKey(), 0);
+                    continue;
+                }
                 offset += entry.getValue().type.getSize();
                 offsets.put(entry.getKey(), offset);
             }
         }
+
+        public void printOffsets() {
+            for (Map.Entry<String, Integer> entry : offsets.entrySet()) {
+                System.out.println(entry.getKey() + " " + entry.getValue());
+            }
+        }
+
 
         public int getSize() {
             return size;
@@ -1357,8 +1403,6 @@ public class Parser {
                 asm.add(CommandAsm.CommandType.MOV, RegisterType.AL, DataType.BYTE, RegisterType.EAX, 0);
                 asm.add(CommandAsm.CommandType.SUB, RegisterType.ESP, 1);
                 asm.add(CommandAsm.CommandType.MOV, DataType.BYTE, RegisterType.ESP, 0, RegisterType.AL);
-                //code.push_back({ asm_command::type::mov,{ asm_reg::reg_type::esp, asm_mem::mem_size::byte },asm_reg::reg_type::al });
-                //code.push_back({ asm_command::type::mov, {asm_reg::reg_type::ebx, asm_mem::mem_size::dword, -offset.second}, asm_reg::reg_type::eax });
                 return;
             case INT:
                 asm.add(CommandAsm.CommandType.PUSH, DataType.DWORD, RegisterType.EAX, 0);
@@ -1493,12 +1537,7 @@ public class Parser {
             case INT:
                 asm.add(CommandType.POP, RegisterType.EBX);
                 asm.add(CommandType.CMP, DataType.DWORD, RegisterType.ESP, 0, RegisterType.EBX);
-                //code.push_back({ asm_command::type::cmp, {asm_reg::reg_type::esp, asm_mem::mem_size::dword},  asm_reg::reg_type::ebx });
-                //code.push_back({ asm_command::type::cmp, {asm_reg::reg_type::ebx, asm_mem::mem_size::dword, -offset.second }, asm_reg::reg_type::eax });
-
-                //public void add(CommandAsm.CommandType type, DataType dataType, RegisterType registerType1, Integer offset, RegisterType registerType) {
-
-            commandType = operationsInt.get(node.token.getTokenValue());
+                commandType = operationsInt.get(node.token.getTokenValue());
                 break;
             case DOUBLE:
                 boolean isEqual = node.token.getTokenValue() == OP_EQUAL || node.token.getTokenValue() == OP_NOT_EQUAL;
@@ -1617,19 +1656,15 @@ public class Parser {
         }
     }
 
-    public class ArrayNode extends Node {
-        public ArrayNode() {
-            super(new ArrayList<>(),  new Token("typed_constant", new Pair(TokenType.IDENTIFIER, VARIABLE)));
-        }
-//        public ArrayNode(Token token) {
-//
-//        }
-    }
-
-    public class RecordNode extends Node {
-        public RecordNode(Type type) {
+    public class TypedConstant extends Node {
+        public TypedConstant(Type type) {
             super(new ArrayList<>(), new Token("typed_constant", new Pair(TokenType.IDENTIFIER, VARIABLE)));
             this.type = type;
+        }
+
+        @Override
+        public void genAsmCode(CodeAsm asm, boolean isLeft) {
+            super.genAsmCode(asm, isLeft);
         }
     }
 
@@ -1814,12 +1849,46 @@ public class Parser {
             super(children, new Token("[]", new Pair(TokenType.SEPARATOR, SEP_BRACKETS_SQUARE_LEFT)));
             this.type = type;
         }
+
+        @Override
+        public void genAsmCode(CodeAsm asm, boolean isLeft) {
+            children.get(1).genAsmCode(asm, false);
+            children.get(0).genAsmCode(asm, true);
+            asm.add(CommandType.POP, RegisterType.ECX);
+            asm.add(CommandType.POP, RegisterType.EAX);
+            Type variableType = children.get(0).type;
+            ConstNode min = ((ArrayType)variableType).min;
+            int minValue = Integer.parseInt(min.result.toString());
+            //int index = Integer.parseInt(((ConstNode)children.get(1)).result.toString());
+            if (minValue != 0)
+                asm.add(CommandType.SUB, RegisterType.EAX, minValue);
+            ArrayType arrayType = (ArrayType)children.get(0).type;
+            asm.add(CommandType.MOV, RegisterType.EBX, arrayType.elementType.getSize());
+            asm.add(CommandType.IMUL, RegisterType.EBX);
+            asm.add(CommandType.ADD, RegisterType.ECX, RegisterType.EAX);
+            asm.add(CommandType.PUSH, RegisterType.ECX);
+            if (isLeft)
+                return;
+            putValueOnStack(asm, type);
+        }
     }
 
     private class FieldAccessNode extends Node {
         public FieldAccessNode(ArrayList<Node> children, Type type) {
             super(children, new Token(".", new Pair(TokenType.SEPARATOR, SEP_DOT)));
             this.type = type;
+        }
+
+        @Override
+        public void genAsmCode(CodeAsm asm, boolean isLeft) {
+            children.get(0).genAsmCode(asm, true);
+            Type variableType = children.get(0).type;
+            int offset = ((RecordType)variableType).getRecordOffset(children.get(1).token, children.get(1).type);
+            if (offset != 0)
+                asm.add(CommandType.ADD, DataType.DWORD, RegisterType.ESP, 0, offset);
+            if (isLeft)
+                return;
+            putValueOnStack(asm, type);
         }
     }
 
@@ -1850,44 +1919,45 @@ public class Parser {
         @Override
         public void genAsmCode(CodeAsm asm, boolean isLeft) {
             children.get(0).genAsmCode(asm, false);
-            Type resultType = children.get(0).type;
-            switch (type.category) {
+            Type baseType = children.get(0).type;
+            Type resultType = type;
+            switch (resultType.category) {
                 case CHAR:
-                    switch (resultType.category) {
+                    switch (baseType.category) {
                         case CHAR:
                             return;
                         case INT:
                             asm.add(CommandType.POP, RegisterType.EAX);
                             asm.add(CommandType.SUB, RegisterType.ESP, 1);
-                            asm.add(CommandType.MOV, RegisterType.ESP, DataType.BYTE, RegisterType.AL, 0);
+                            asm.add(CommandType.MOV, DataType.BYTE, RegisterType.ESP, 0, RegisterType.AL);
                             return;
                         case DOUBLE:
                             asm.add(CommandType.CVTTSD2SI, RegisterType.EAX, DataType.QWORD, RegisterType.ESP, 0);
                             asm.add(CommandType.ADD, RegisterType.ESP, 7);
-                            asm.add(CommandType.MOV, RegisterType.ESP, DataType.BYTE, RegisterType.AL, 0);
+                            asm.add(CommandType.MOV, RegisterType.ESP,  DataType.BYTE, RegisterType.AL, 0);
                             return;
                         default:
                             return; // :-)
                     }
                 case INT:
-                    switch (resultType.category) {
+                    switch (baseType.category) {
                         case CHAR:
                             asm.add(CommandType.MOVSX, RegisterType.EAX, DataType.BYTE, RegisterType.ESP, 0);
                             asm.add(CommandType.SUB, RegisterType.ESP, 3);
-                            asm.add(CommandType.MOV, RegisterType.ESP, DataType.DWORD, RegisterType.EAX, 0);
+                            asm.add(CommandType.MOV,  DataType.DWORD, RegisterType.ESP, 0, RegisterType.EAX);
                             return;
                         case INT:
                             return;
                         case DOUBLE:
                             asm.add(CommandType.CVTTSD2SI, RegisterType.EAX, DataType.QWORD, RegisterType.ESP, 0);
                             asm.add(CommandType.ADD, RegisterType.ESP, 4);
-                            asm.add(CommandType.MOV, RegisterType.ESP, DataType.DWORD, RegisterType.EAX, 0);
+                            asm.add(CommandType.MOV, DataType.DWORD, RegisterType.ESP, 0, RegisterType.EAX);
                             break;
                         default:
                             return; // :-)
                     }
                 case DOUBLE:
-                    switch (resultType.category) {
+                    switch (baseType.category) {
                         case CHAR:
                             asm.add(CommandType.MOVSX, RegisterType.EAX, DataType.BYTE, RegisterType.ESP, 0);
                             asm.add(CommandType.SUB, RegisterType.ESP, 7);
@@ -1916,8 +1986,6 @@ public class Parser {
 
         @Override
         public void genAsmCode(CodeAsm asm, boolean isLeft) {
-            //asm.add(CommandAsm.CommandType.PUSH, RegisterType.ESP);
-            //asm.add(CommandAsm.CommandType.AND, RegisterType.ESP, -16);
             int size = 4;
             StringBuilder builder = new StringBuilder();
             for (Node node : children) {
@@ -1931,27 +1999,27 @@ public class Parser {
                         builder.append("%f");
                         break;
                     case CHAR:
-                        if (node.token.getText().length() > 1)
-                            builder.append("%s");
-                        else
+//                        if (node.token.getText().length() > 1)
+//                            builder.append("%s");
+//                        else
                             builder.append("%c");
                         size += 4;
                         break;
                 }
             }
             int al_size = (16 - (size + 4 * asm.getLoopForCount()) % 16) % 16;
-            //int al_size = size += (16 - size % 16) % 16;
             if (al_size > 0)
                 asm.add(CommandAsm.CommandType.SUB, RegisterType.ESP, al_size);
             for (int i = children.size() - 1; i >= 0; i--) {
                 Node child = children.get(i);
                 child.genAsmCode(asm, false);
-                if (child.type.category == Category.CHAR && child.token.getText().length() == 1) {
+                if (child.type.category == Category.CHAR) {
                     asm.add(CommandAsm.CommandType.MOVSX, RegisterType.EAX, DataType.BYTE, RegisterType.ESP, 0);
                     asm.add(CommandAsm.CommandType.ADD, RegisterType.ESP, 1);
                     asm.add(CommandAsm.CommandType.PUSH, RegisterType.EAX);
                 }
             }
+            builder.append(Character.toString((char)10)); // for line break
             String format = asm.addStringConstant(builder.toString());
             asm.add(CommandAsm.CommandType.PUSH, format);
             asm.add(CommandAsm.CommandType.CALL, "_printf");
@@ -1970,11 +2038,21 @@ public class Parser {
         public ContinueNode(Token token) {
             super(null, token);
         }
+
+        @Override
+        public void genAsmCode(CodeAsm asm, boolean isLeft) {
+            asm.add(CommandType.JMP, asm.getLoopStarts().peek());
+        }
     }
 
     private class BreakNode extends Node {
         public BreakNode(Token token) {
             super(null, token);
+        }
+
+        @Override
+        public void genAsmCode(CodeAsm asm, boolean isLeft) {
+            asm.add(CommandType.JMP, asm.getLoopEnds().peek());
         }
     }
 

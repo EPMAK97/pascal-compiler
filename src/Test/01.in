@@ -1,4 +1,0 @@
-var d, b : double;
-    c, d : integer;
-    e, f : char;
-Begin
